@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GrowX</title>
+  <script src="ui/theme.js"></script>
+  <link rel="stylesheet" href="ui/base.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="pop">
+    <header class="top">
+      <img src="ui/logo.svg" class="logo" alt="">
+      <div class="brand"><b>GrowX</b><small>Unlimited Auto Follow</small></div>
+      <button class="icon-btn" id="openDash" title="Open dashboard" data-icon="layers"></button>
+      <button class="icon-btn" data-theme-toggle></button>
+    </header>
+
+    <section class="acct" id="acct">
+      <span class="avatar" id="acAvatar"></span>
+      <div class="ac-who"><b id="acName">Not connected</b><small id="acHandle">Open x.com and sign in</small></div>
+      <div class="ac-stat"><b class="num" id="acFollowers">-</b><small id="acDelta">followers</small></div>
+    </section>
+
+    <section class="hero" id="hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="hero-top">
+        <span class="pill" id="pill"><span class="dot"></span><span id="pillText">Ready</span></span>
+        <span class="hero-mode" id="mode"></span>
+      </div>
+      <div class="pop-modes" id="popModes" role="group" aria-label="Mode">
+        <button type="button" data-pmode="follow">Follow</button>
+        <button type="button" data-pmode="unfollow">Unfollow</button>
+        <button type="button" data-pmode="followback">Follow back</button>
+        <button type="button" data-pmode="comment">Comment</button>
+      </div>
+      <div class="hero-main">
+        <div class="ring-wrap" id="ringWrap">
+          <div class="ring-center"><b class="num" id="today">0</b><small id="todayOf">of 0 today</small></div>
+        </div>
+        <div class="hero-side">
+          <small id="nextLabel">Next follow</small>
+          <b class="num" id="nextTime">--</b>
+          <div class="bar thin" id="nextBar"><i></i></div>
+          <div class="target" id="target" hidden>
+            <span class="avatar" id="tgAvatar"></span>
+            <div><b id="tgHandle"></b><small id="tgMeta"></small></div>
+          </div>
+        </div>
+      </div>
+      <p class="hero-msg" id="msg">Grow your X audience on autopilot.</p>
+      <div class="meters">
+        <div class="meter"><span>This hour</span><b class="num" id="hourTxt">0/0</b><div class="bar thin"><i id="hourBar"></i></div></div>
+        <div class="meter"><span>Queue</span><b class="num" id="queueTxt">0</b><div class="bar thin"><i id="queueBar"></i></div></div>
+      </div>
+      <div class="ctl" id="ctl"></div>
+    </section>
+
+    <section class="setup card" id="setup" hidden>
+      <div class="setup-head"><span class="setup-ic" data-icon="target"></span><div><b id="setupTitle">Add a source profile</b><small id="setupSub">GrowX follows the newest, most active followers of profiles in your niche.</small></div></div>
+      <form class="setup-form" id="srcForm">
+        <input class="input" id="srcInput" placeholder="@username, e.g. a creator in your niche" autocomplete="off" spellcheck="false">
+        <button class="btn btn-primary" type="submit" data-icon="plus"><span>Add</span></button>
+      </form>
+      <button class="btn btn-primary btn-block" id="signIn" hidden data-icon="external"><span>Open x.com to sign in</span></button>
+    </section>
+
+    <section class="tiles" id="tiles">
+      <div class="tile"><small id="tRateL">FB rate</small><b class="num" id="tRate">-</b><span id="tRateSub">after each follow</span></div>
+      <div class="tile"><small>This month</small><b class="num" id="tMonth">-</b><div class="bar thin"><i id="tMonthBar"></i></div></div>
+      <div class="tile"><small id="tTotalL">Followed</small><b class="num" id="tTotal">0</b><span id="tTotalSub">by GrowX</span></div>
+    </section>
+
+    <div class="actions">
+      <button class="btn btn-soft btn-block" id="dash" data-icon="layers"><span>Open dashboard</span></button>
+      <button class="btn btn-soft btn-block" id="openCmt" data-icon="chat" hidden><span>Open Comment</span></button>
+    </div>
+    <footer class="foot">
+      <div>Developed by <a class="dev-main" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" title="Telegram @mahfuzxallum">Mahfuz Allum</a> &amp; <a href="https://t.me/igfrostt" target="_blank" rel="noopener" title="Telegram @igfrostt">Shahriar Ahmed</a></div>
+      <div>&copy; 2026 Unique Labs &middot; <span id="ver">v3.1.0</span> &middot; <a href="#" id="donate">Donate</a></div>
+    </footer>
+  </div>
+  <script src="shared/config.js"></script>
+  <script src="shared/cmt.js"></script>
+  <script src="ui/common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

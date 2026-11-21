@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · GrowX</title>
+  <link rel="icon" href="ui/logo.svg" type="image/svg+xml">
+  <script src="ui/theme.js"></script>
+  <link rel="stylesheet" href="ui/base.css">
+  <style>
+    body { background: var(--bg); }
+    .doc { max-width: 760px; margin: 0 auto; padding: 36px 20px 60px; }
+    .doc header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .doc header img { width: 48px; height: 48px; border-radius: 14px; box-shadow: var(--shadow-accent); }
+    .doc header h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+    .doc header p { margin: 2px 0 0; color: var(--muted); }
+    .doc header .icon-btn { margin-left: auto; }
+    .doc .card { padding: 22px 26px; }
+    .doc h2 { font-size: 17px; margin: 22px 0 6px; }
+    .doc h2:first-child { margin-top: 0; }
+    .doc p, .doc li { color: var(--text-2); }
+    .doc footer { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="doc">
+    <header>
+      <img src="ui/logo.svg" alt="">
+      <div><h1>Privacy Policy</h1><p>GrowX - Unlimited Auto Follow for X/Twitter · last updated October 2026</p></div>
+      <button class="icon-btn" data-theme-toggle></button>
+    </header>
+    <div class="card">
+      <h2>The short version</h2>
+      <p>GrowX has no servers. It collects nothing, tracks nothing and sells nothing. Everything it stores stays in your own browser.</p>
+
+      <h2>What GrowX stores, and where</h2>
+      <ul>
+        <li>Your settings, source profiles, never-follow list and the follow queue.</li>
+        <li>A history of the accounts GrowX followed for you and whether they followed back.</li>
+        <li>Your follower and following counts over time, for the growth chart.</li>
+        <li><b>Comment mode:</b> the posts you added, the replies that were written, which posts you have already replied to, your day totals, your prompts and your rules. Your OpenAI key and your Telegram bot token are kept in this browser and are never written into a backup you share.</li>
+      </ul>
+      <p>All of it lives in <code>chrome.storage</code> on your computer. You can export it, or delete it any time from Settings &rarr; Reset, or by removing the extension.</p>
+
+      <h2>Network requests</h2>
+      <p>GrowX talks only to <b>x.com</b> (the same requests X's own website makes when you browse followers, press Follow or press Reply), using your existing signed-in session in your own browser, and to <b>abs.twimg.com</b> to read X's public web-app scripts. It never sees or stores your password. No data is sent to Unique Labs or anyone else.</p>
+      <p>Comment mode adds two more, and only when you switch them on and give it your own key:</p>
+      <ul>
+        <li><b>api.openai.com</b> - the post GrowX is replying to, your prompt, your rules and your last replies are sent to OpenAI with <em>your</em> API key, so OpenAI can write the reply. Billing is between you and OpenAI; GrowX never sees your key leave this browser.</li>
+        <li><b>api.telegram.org</b> - only if you add a bot token: your run updates are sent to your own Telegram chat.</li>
+      </ul>
+
+      <h2>Permissions</h2>
+      <ul>
+        <li><b>x.com / twitter.com / abs.twimg.com</b> - to follow accounts and read follower lists for you.</li>
+        <li><b>storage, unlimitedStorage</b> - to keep your settings, queue and history locally.</li>
+        <li><b>alarms</b> - to keep the autopilot running in the background on schedule.</li>
+        <li><b>scripting</b> - to attach GrowX to x.com tabs that were already open.</li>
+        <li><b>notifications</b> - optional desktop alerts (warnings, milestones).</li>
+        <li><b>power</b> - optionally keeps your computer awake while the autopilot runs.</li>
+        <li><b>downloads</b> - writes the daily Comment backup file to Downloads/GrowX/ so your history survives a reinstall.</li>
+        <li><b>api.openai.com / api.telegram.org</b> - only used by Comment mode, and only with the key and token you add yourself.</li>
+      </ul>
+
+      <h2>Your responsibility</h2>
+      <p>GrowX acts on your X account at your request. Use it in line with X's rules. GrowX is not affiliated with or endorsed by X Corp.</p>
+
+      <h2>Contact</h2>
+      <p>Questions? Message <a class="dev-main" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" title="Telegram @mahfuzxallum">Mahfuz Allum</a> or <a href="https://t.me/igfrostt" target="_blank" rel="noopener" title="Telegram @igfrostt">Shahriar Ahmed</a> on Telegram.</p>
+    </div>
+    <footer>&copy; 2026 Unique Labs. GrowX is a product of Unique Labs. Developed by <a class="dev-main" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" title="Telegram @mahfuzxallum">Mahfuz Allum</a> and <a href="https://t.me/igfrostt" target="_blank" rel="noopener" title="Telegram @igfrostt">Shahriar Ahmed</a>.</footer>
+  </div>
+  <script src="ui/common.js"></script>
+  <script src="privacy.js"></script>
+</body>
+</html>

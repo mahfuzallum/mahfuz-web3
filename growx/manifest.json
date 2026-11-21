@@ -1,0 +1,77 @@
+{
+  "manifest_version": 3,
+  "name": "GrowX - Unlimited Auto Follow for X/Twitter",
+  "short_name": "GrowX",
+  "version": "3.1.0",
+  "description": "Free X (Twitter) growth autopilot: auto follow, follow back, unfollow and AI reply comments - safe limits, full control.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "alarms",
+    "scripting",
+    "notifications",
+    "power",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://*.twimg.com/*",
+    "https://api.openai.com/*",
+    "https://api.telegram.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "GrowX - Unlimited Auto Follow",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "content/txid.js",
+        "content/xapi.js",
+        "content/xcmt.js",
+        "content/dom.js",
+        "content/cmtdom.js",
+        "content/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "emergency-stop": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Stop every GrowX autopilot immediately"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "homepage_url": "https://www.shahriarahmed.net"
+}

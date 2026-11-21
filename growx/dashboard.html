@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GrowX - Unlimited Auto Follow for X/Twitter. Grow real followers on autopilot: find the newest, most active followers of any profile, score them for follow-back, and follow them safely in the background.">
+  <title>GrowX - Unlimited Auto Follow for X/Twitter</title>
+  <link rel="icon" href="ui/logo.svg" type="image/svg+xml">
+  <script src="ui/theme.js"></script>
+  <link rel="stylesheet" href="ui/base.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="dashboard-cmt.css">
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="side" id="side">
+      <div class="side-brand">
+        <img src="ui/logo.svg" alt="">
+        <div><b>GrowX</b><small>Unlimited Auto Follow</small></div>
+        <button class="icon-btn" data-theme-toggle></button>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a href="#overview" data-route="overview" data-icon="home"><span>Overview</span></a>
+        <a href="#sources" data-route="sources" data-icon="target"><span>Sources</span><em id="navSrc" hidden></em></a>
+        <a href="#queue" data-route="queue" data-icon="list"><span>Queue</span><em id="navQueue" hidden></em></a>
+        <a href="#targeting" data-route="targeting" data-icon="filter"><span>Targeting</span></a>
+        <a href="#autopilot" data-route="autopilot" data-icon="gauge"><span>Autopilot &amp; Safety</span></a>
+        <a href="#history" data-route="history" data-icon="history"><span>History</span></a>
+        <a href="#followedback" data-route="followedback" data-icon="userPlus"><span>Followed back</span><em id="navBk" hidden></em></a>
+        <a href="#unfollowed" data-route="unfollowed" data-icon="userX"><span>Unfollowed</span><em id="navUnf" hidden></em></a>
+        <a href="#lost" data-route="lost" data-icon="userMinus"><span>Unfollowed you</span><em id="navLost" hidden></em></a>
+        <a href="#comment" data-route="comment" data-icon="chat"><span>Comment</span><em id="navCmt" hidden></em></a>
+        <a href="#cmthistory" data-route="cmthistory" data-icon="history"><span>Comment history</span></a>
+        <a href="#analytics" data-route="analytics" data-icon="chart"><span>Analytics</span></a>
+        <a href="#settings" data-route="settings" data-icon="settings"><span>Settings</span></a>
+        <a href="#help" data-route="help" data-icon="help"><span>Help</span></a>
+        <a href="#donate" data-route="donate" data-icon="heart" class="nav-heart"><span>Donate</span></a>
+      </nav>
+
+      <div class="side-run" id="sideRun">
+        <div class="side-run-top"><span class="pill idle" id="sidePill"><span class="dot"></span><span id="sidePillText">Ready</span></span><b class="num" id="sideToday">0</b></div>
+        <div class="bar thin" id="sideBar"><i></i></div>
+        <small id="sideMsg">Autopilot is off.</small>
+        <div class="side-run-btns" id="sideCtl"></div>
+      </div>
+
+
+      <div class="side-foot">
+        <span id="version">v3.1.0</span>
+        <a href="https://t.me/igfrostt" target="_blank" rel="noopener" data-icon="send"><span>Support</span></a>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main" id="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" data-icon="menu" aria-label="Menu"></button>
+        <img src="ui/logo.svg" alt="" class="top-logo">
+        <b class="top-title" id="topTitle">Overview</b>
+        <span class="pill idle" id="topPill"><span class="dot"></span><span id="topPillText">Ready</span></span>
+        <button class="icon-btn" data-theme-toggle></button>
+      </header>
+
+      <!-- OVERVIEW -->
+      <section class="page" data-page="overview">
+        <div class="ov-hero">
+          <div class="ov-hero-bg" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="ov-top">
+            <div class="ov-who">
+              <span class="avatar" id="ovAvatar"></span>
+              <div>
+                <span class="kicker" id="ovKicker">Growth control center</span>
+                <h1 id="ovHello">Grow on autopilot</h1>
+                <p id="ovMeta">Sign in to X in this browser to begin.</p>
+              </div>
+            </div>
+            <div class="ov-ctl" id="ovCtl"></div>
+          </div>
+          <div class="ov-run" id="ovRun"></div>
+          <div class="ov-chips" id="ovChips"></div>
+        </div>
+
+        <div class="kpis">
+          <div class="card kpi lift">
+            <div class="kpi-ring" id="kTodayRing"></div>
+            <div><small>Follows · 24h</small><b class="num" id="kToday">0</b><span id="kTodaySub">of 0 allowed</span></div>
+          </div>
+          <div class="card kpi lift">
+            <span class="kpi-ic" data-icon="sparkles"></span>
+            <div><small>Follow-back rate</small><b class="num" id="kRate">-</b><span id="kRateSub">checked after each follow</span></div>
+          </div>
+          <div class="card kpi lift">
+            <span class="kpi-ic green" data-icon="trend"></span>
+            <div><small>Gained · 7 days</small><b class="num" id="kWeek">-</b><span id="kWeekSub">-</span></div>
+          </div>
+          <div class="card kpi lift">
+            <span class="kpi-ic violet" data-icon="list"></span>
+            <div><small>Ready in queue</small><b class="num" id="kQueue">0</b><span id="kQueueSub">candidates scored</span></div>
+          </div>
+        </div>
+
+        <div class="ov-cmt" id="ovCmt" hidden></div>
+
+        <div class="ov-grid">
+          <div class="card live" id="live">
+            <div class="live-head">
+              <div><span class="pill idle" id="livePill"><span class="dot"></span><span id="livePillText">Ready</span></span></div>
+              <div class="live-chips" id="liveChips"></div>
+            </div>
+            <div class="x-alert" id="xAlert" hidden></div>
+            <div class="live-seq" id="liveSeq" hidden></div>
+            <div class="mode-prog" id="modeProg"></div>
+            <div class="live-target" id="liveTarget">
+              <span class="avatar" id="ltAvatar"></span>
+              <div class="lt-who"><small id="ltLabel">Up next</small><b id="ltName">Nobody yet</b><span id="ltMeta">Add sources and start the autopilot.</span></div>
+              <div class="lt-score" id="ltScore"></div>
+            </div>
+            <div class="live-count">
+              <div class="lc-top"><span id="lcLabel">Autopilot is off</span><b class="num" id="lcTime">--</b></div>
+              <div class="bar" id="lcBar"><i></i></div>
+            </div>
+            <p class="live-msg" id="liveMsg">Press Start and GrowX keeps working in the background - even with this page closed.</p>
+            <div class="live-meters">
+              <div><span>This hour</span><b class="num" id="lmHour">0/0</b><div class="bar thin"><i id="lmHourBar"></i></div></div>
+              <div><span id="lmDayLabel">Last 24 hours</span><b class="num" id="lmDay">0/0</b><div class="bar thin"><i id="lmDayBar"></i></div></div>
+              <div><span>Until next break</span><b class="num" id="lmBreak">-</b><div class="bar thin amber"><i id="lmBreakBar"></i></div></div>
+            </div>
+            <p class="live-eta" id="lmEta" hidden></p>
+            <p class="live-plan" id="lmPlan"></p>
+            <div class="live-stats">
+              <div><b class="num" id="lsDone">0</b><span>followed this run</span></div>
+              <div><b class="num" id="lsSkip">0</b><span>skipped</span></div>
+              <div><b class="num" id="lsFail">0</b><span>failed</span></div>
+              <div><b class="num" id="lsTime">-</b><span>running for</span></div>
+            </div>
+          </div>
+
+          <div class="card goal" id="goal">
+            <div class="goal-head"><div><small>Monthly goal</small><b id="goalTitle">5,000 new followers</b></div><a href="#analytics" class="btn btn-ghost btn-xs" data-icon="chart"><span>Planner</span></a></div>
+            <div class="goal-ring" id="goalRing"><div class="goal-center"><b class="num" id="goalGained">-</b><small id="goalPct">this month</small></div></div>
+            <div class="goal-facts">
+              <div><span>Days left</span><b class="num" id="goalDays">-</b></div>
+              <div><span>Needed / day</span><b class="num" id="goalNeed">-</b></div>
+              <div><span>On pace for</span><b class="num" id="goalProj">-</b></div>
+            </div>
+            <p class="goal-note" id="goalNote">GrowX measures your growth every few hours.</p>
+          </div>
+        </div>
+
+        <div class="card plan" id="planCard">
+          <div class="plan-main">
+            <div class="plan-head">
+              <div><small>Today's plan</small><b class="num" id="planTitle">0 / 0 follows</b><span id="planSub">-</span></div>
+            </div>
+            <div class="plan-facts" id="planFacts"></div>
+            <div class="plan-tl" id="planTl"></div>
+            <div class="plan-legend"><span><i class="k w"></i>Done</span><span><i class="k b"></i>Break</span><span><i class="k n"></i>Now</span><span class="tl-ends" id="planEnds"></span></div>
+          </div>
+          <div class="plan-safety" id="planSafety"></div>
+        </div>
+
+        <div class="ov-grid b">
+          <div class="card chart-card">
+            <div class="card-head"><div><b>Followers</b><small>last 30 days</small></div><span class="chip green" id="chGain"></span></div>
+            <div class="chart-box" id="chFollowers"></div>
+          </div>
+          <div class="card feed-card">
+            <div class="card-head"><div><b>Activity</b><small>live from the engine</small></div><div class="seg" id="feedSeg"><button class="on" data-feed="log">Run</button><button data-feed="events">Events</button></div></div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SOURCES -->
+      <section class="page" data-page="sources">
+        <header class="page-head">
+          <div><span class="kicker">Step 1</span><h1>Sources</h1><p>Profiles whose <b>newest followers</b> GrowX follows. Their latest followers are active right now and already follow accounts like yours - the best audience there is.</p></div>
+          <div class="btn-row"><button class="btn btn-primary" id="srcHarvest" data-icon="search"><span>Find people now</span></button></div>
+        </header>
+        <div class="card add-card">
+          <div class="add-row">
+            <textarea class="textarea" id="srcText" rows="2" placeholder="@creator, @community, https://x.com/brand - one or many, separated by spaces, commas or lines" spellcheck="false"></textarea>
+            <button class="btn btn-primary btn-lg" id="srcAdd" data-icon="plus"><span>Add sources</span></button>
+          </div>
+          <div class="tips">
+            <span data-icon="sparkles"></span>
+            <p><b>Pick sources like a pro:</b> active accounts in your exact niche with 5K-500K followers whose audience is real people (creators, communities, niche news, competitors). Add 5-15 sources - GrowX rotates between them and ranks each by its real follow-back rate. Avoid celebrities and big brands: their followers rarely follow back.</p>
+          </div>
+        </div>
+        <div class="card add-card">
+          <div class="card-head"><div><b>Or follow these exact accounts</b><small>Paste usernames or profile links - as many as you like. Anyone you already follow is skipped; the rest join the Follow queue and are followed with your pacing, your daily number and every safety setting.</small></div></div>
+          <div class="add-row">
+            <textarea class="textarea" id="listText" rows="3" placeholder="@someone, https://x.com/another, x.com/third - spaces, commas or one per line" spellcheck="false"></textarea>
+            <button class="btn btn-primary btn-lg" id="listAdd" data-icon="plus"><span>Add to Follow queue</span></button>
+          </div>
+          <label class="switch imp-pin"><input type="checkbox" id="listPin" checked><span class="track"></span><span>Follow these before the rest of the queue</span></label>
+          <div class="imp-result" id="listResult" hidden></div>
+        </div>
+        <div class="task-banner card" id="taskBanner" hidden><span class="spinner"></span><div class="tb-text"><p id="taskMsg"></p><div class="bar thin is-live" id="taskBar"><i></i></div></div><button class="btn btn-sm" id="taskStop" data-icon="stop"><span>Stop</span></button></div>
+        <div class="sweep-note card" id="sweepNote" hidden><span class="sn-ic" data-icon="check"></span><p id="sweepText"></p></div>
+        <div class="src-grid" id="srcList"></div>
+      </section>
+
+      <!-- QUEUE -->
+      <section class="page" data-page="queue">
+        <header class="page-head">
+          <div><span class="kicker">Step 2</span><h1>Queue</h1><p>Everyone here passed your targeting rules and is ranked by <b>follow-back score</b> - the best go first. The queue refills itself while the autopilot runs.</p></div>
+          <div class="btn-row">
+            <button class="btn" id="qImport" data-icon="upload"><span>Import list</span></button>
+            <button class="btn btn-primary" id="qHarvest" data-icon="search"><span>Find more</span></button>
+          </div>
+        </header>
+        <div class="toolbar card">
+          <div class="search"><span data-icon="search"></span><input class="input" id="qSearch" placeholder="Search name, @handle or bio"></div>
+          <select class="select" id="qSource"><option value="">All sources</option></select>
+          <div class="seg" id="qSort"><button class="on" data-sort="score">Best score</button><button data-sort="new">Newest</button><button data-sort="fc">Smallest</button></div>
+          <button class="btn btn-ghost btn-sm" id="qClear" data-icon="trash"><span>Clear queue</span></button>
+        </div>
+        <div class="bulk" id="qBulk" hidden>
+          <b id="qSel">0 selected</b>
+          <button class="btn btn-sm" data-bulk="pin" data-icon="pin"><span>Pin to top</span></button>
+          <button class="btn btn-sm" data-bulk="remove" data-icon="x"><span>Remove</span></button>
+          <button class="btn btn-sm btn-danger-soft" data-bulk="block" data-icon="ban"><span>Never follow</span></button>
+          <button class="btn btn-ghost btn-sm" data-bulk="none"><span>Clear selection</span></button>
+        </div>
+        <div class="card table-card">
+          <div class="trow thead q-cols"><label class="cb"><input type="checkbox" id="qAll"><i></i></label><span>Account</span><span>Score</span><span>Followers</span><span>Following</span><span>Ratio</span><span>Active</span><span>Source</span><span></span></div>
+          <div id="qRows"></div>
+        </div>
+        <div class="more" id="qMore" hidden><button class="btn" id="qMoreBtn"><span>Show more</span></button></div>
+      </section>
+
+      <!-- TARGETING -->
+      <section class="page" data-page="targeting">
+        <header class="page-head">
+          <div><span class="kicker">Who gets followed</span><h1>Targeting</h1><p>Only real, active people who are likely to follow you back. Every account is checked against these rules and scored before it enters the queue.</p></div>
+        </header>
+        <div class="split">
+          <div class="form-stack" data-form="targeting">
+            <div class="card fs">
+              <div class="fs-head"><span data-icon="sparkles"></span><div><b>Follow-back score</b><small>Estimated chance to follow back, 1-99. Raise it for quality, lower it for volume.</small></div></div>
+              <div class="range-row"><input type="range" class="range" min="0" max="90" step="1" data-k="minScore" id="f_minScore"><b class="range-val num" id="f_minScoreVal">55</b></div>
+              <div class="score-legend"><span class="score s-lo">40</span> volume <span class="score s-mid">55</span> balanced <span class="score s-hi">70</span> quality</div>
+            </div>
+            <div class="card fs">
+              <div class="fs-head"><span data-icon="users"></span><div><b>Audience size</b><small>Small and mid-size accounts follow back far more often than big ones.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Min followers</label><input class="input num" type="number" min="0" data-k="minFollowers"></div>
+                <div class="field"><label>Max followers</label><input class="input num" type="number" min="0" data-k="maxFollowers"><span class="hint">0 = no limit</span></div>
+                <div class="field"><label>Min following</label><input class="input num" type="number" min="0" data-k="minFollowing"><span class="hint">people who follow many, follow back</span></div>
+                <div class="field"><label>Min following ÷ followers</label><input class="input num" type="number" min="0" step="0.05" data-k="minRatio"><span class="hint">1.0 = follows as many as follow them</span></div>
+              </div>
+            </div>
+            <div class="card fs">
+              <div class="fs-head"><span data-icon="flame"></span><div><b>Activity &amp; quality</b><small>Skip bots, empty and abandoned accounts.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Min posts</label><input class="input num" type="number" min="0" data-k="minTweets"></div>
+                <div class="field"><label>Min account age</label><div class="with-unit"><input class="input num" type="number" min="0" data-k="minAgeDays"><span>days</span></div></div>
+                <div class="field"><label>Posted within</label><div class="with-unit"><input class="input num" type="number" min="0" data-k="lastActiveDays"><span>days</span></div><span class="hint">0 = don't check</span></div>
+              </div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="requireAvatar"><span class="track"></span><span>Must have a profile photo</span></label>
+                <label class="switch"><input type="checkbox" data-k="requireBio"><span class="track"></span><span>Must have a bio</span></label>
+                <label class="switch"><input type="checkbox" data-k="skipProtected"><span class="track"></span><span>Skip private accounts</span></label>
+                <label class="switch"><input type="checkbox" data-k="skipFollowsMe"><span class="track"></span><span>Skip people who already follow you</span></label>
+                <label class="switch"><input type="checkbox" data-k="skipVerified"><span class="track"></span><span>Skip verified accounts</span></label>
+                <label class="switch"><input type="checkbox" data-k="onlyVerified"><span class="track"></span><span>Only verified accounts</span></label>
+              </div>
+            </div>
+            <div class="card fs">
+              <div class="fs-head"><span data-icon="search"></span><div><b>Keywords</b><small>Matched against name, @handle and bio. Comma separated.</small></div></div>
+              <div class="field"><label>Boost - score +15 when found</label><textarea class="textarea" rows="2" data-k="boostKeywords"></textarea><span class="hint">"follow back" language is the strongest follow-back signal there is</span></div>
+              <div class="field"><label>Require - only follow when one is found</label><textarea class="textarea" rows="2" data-k="includeKeywords" placeholder="e.g. founder, designer, crypto, fitness (empty = anyone)"></textarea></div>
+              <div class="field"><label>Exclude - never follow when found</label><textarea class="textarea" rows="2" data-k="excludeKeywords"></textarea></div>
+              <div class="field"><label>Location - only people from</label><input class="input" data-k="locationKeywords" placeholder="e.g. usa, london, india (empty = worldwide)"></div>
+            </div>
+          </div>
+          <aside class="card preview sticky" id="tPreview">
+            <b>Live preview</b>
+            <p class="hint">Your current queue, checked against the rules on the left.</p>
+            <div class="pv-big"><b class="num" id="pvPass">-</b><span id="pvOf">of 0 pass</span></div>
+            <div class="bar"><i id="pvBar"></i></div>
+            <div class="pv-bands" id="pvBands"></div>
+            <div class="pv-why" id="pvWhy"></div>
+          </aside>
+        </div>
+        <div class="savebar" id="saveTargeting" hidden><span>You have unsaved changes</span><button class="btn btn-ghost" data-revert>Revert</button><button class="btn btn-primary" data-save data-icon="check"><span>Save targeting</span></button></div>
+      </section>
+
+      <!-- AUTOPILOT -->
+      <section class="page" data-page="autopilot">
+        <header class="page-head">
+          <div><span class="kicker">Speed, limits, schedule</span><h1>Autopilot &amp; Safety</h1><p>Everything about timing in one place, top to bottom: how many, how fast, when to rest, and what to do when something fails. The Safety box on the right shows how risky your numbers are.</p></div>
+        </header>
+        <div class="unsaved-banner" id="unsavedBanner" hidden><span><b>Not saved yet.</b> The running autopilot still uses the OLD numbers (see "Running with" on the Overview). Press Save &amp; apply for the new ones to start.</span><button class="btn btn-primary" id="unsavedSave" type="button"><span>Save &amp; apply</span></button></div>
+        <div class="mode-switch" id="modeSwitch">
+          <div class="ms-title"><b>Mode</b><span>Only one runs at a time. Click one and it switches <strong>right away</strong> - then it starts by itself every day, inside that mode's hours.</span></div>
+          <p class="ms-seq" id="msSeqNote" hidden></p>
+          <div class="ms-tiles" id="modeSeg">
+            <button type="button" class="ms-tile th-fl" data-mode="follow"><span class="ms-ic" data-icon="users"></span><span class="ms-txt"><b>Follow</b><small>Follow new people from your sources</small></span><span class="ms-state" id="msFollow"></span></button>
+            <button type="button" class="ms-tile th-unf" data-mode="unfollow"><span class="ms-ic" data-icon="userX"></span><span class="ms-txt"><b>Unfollow</b><small>Old non-followers first, then no follow-back after N days</small></span><span class="ms-state" id="msUnfollow"></span></button>
+            <button type="button" class="ms-tile th-bk" data-mode="followback"><span class="ms-ic" data-icon="userPlus"></span><span class="ms-txt"><b>Follow back</b><small>Follow the people who follow you - newest follower first</small></span><span class="ms-state" id="msFollowBack"></span></button>
+            <button type="button" class="ms-tile th-cmt" data-mode="comment"><span class="ms-ic" data-icon="chat"></span><span class="ms-txt"><b>Comment</b><small>AI replies on the posts you choose - written, checked and posted</small></span><span class="ms-state" id="msComment"></span></button>
+          </div>
+        </div>
+        <!-- =========================================================
+             Mode sequence & automatic switching
+             Left: the order, the transition break, the extra options.
+             Right: a live preview of the run, where it stands now, and tips.
+             ========================================================= -->
+        <div class="seq-wrap" id="seqWrap">
+          <div data-form="sequence" class="seq-main">
+
+            <div class="card seq-card" id="seqCard">
+              <div class="seq-head">
+                <span class="seq-ic" data-icon="swap"></span>
+                <div class="seq-title">
+                  <b>Mode sequence</b>
+                  <small>Work through your modes one after another, hands off. When a mode reaches <strong>the target set in its own settings</strong>, GrowX <strong>stops it</strong>, takes a <strong>random transition break</strong>, and only <strong>after that break has finished</strong> does the next mode start. This card only sets the <strong>order</strong>, which modes are <strong>in</strong>, and the <strong>break</strong> - every number stays in its own mode's section.</small>
+                </div>
+                <div class="seq-head-acts">
+                  <button type="button" class="btn btn-ghost btn-sm seq-only" id="seqReset" data-icon="refresh"><span>Reset to default</span></button>
+                  <span class="seq-state" id="seqState">Off</span>
+                  <label class="switch fs-switch" title="Turn the mode sequence on or off"><input type="checkbox" data-k="autoSwitch"><span class="track"></span></label>
+                </div>
+              </div>
+              <p class="seq-off-note" id="seqOffNote" hidden>Switched <b>off</b>: GrowX stays in the one mode you pick above and stops when its target is reached - exactly as it always did. Turn it on to set an order and let GrowX work through your modes by itself.</p>
+              <div class="seq-cards seq-only" id="seqCards"></div>
+              <p class="hint seq-note seq-only" id="seqNote"></p>
+            </div>
+
+            <div class="card seq-card seq-only" id="transCard">
+              <div class="seq-head">
+                <span class="seq-ic" data-icon="clock"></span>
+                <div class="seq-title">
+                  <b>Transition break</b>
+                  <small>This break happens after a mode reaches its target and before the next one starts. Nothing at all happens during it.</small>
+                </div>
+                <span class="chip seq-chip-note" title="Your normal breaks between follows or unfollows are set per mode and are not affected">Separate from your action breaks</span>
+              </div>
+              <div class="trans-grid">
+                <div class="field">
+                  <label>Shortest break</label>
+                  <div class="with-unit icon-unit"><span class="iu" data-icon="clock"></span><input class="input num" type="number" min="1" max="720" data-k="transMin"><span>min</span></div>
+                </div>
+                <div class="field">
+                  <label>Longest break <i>never more</i></label>
+                  <div class="with-unit icon-unit"><span class="iu" data-icon="clock"></span><input class="input num" type="number" min="1" max="720" data-k="transMax"><span>min</span></div>
+                </div>
+                <div class="trans-rand">
+                  <span class="tr-ic" data-icon="sparkles"></span>
+                  <div><b>Random every time</b><small id="transRand"></small></div>
+                </div>
+              </div>
+              <div class="trans-slider" id="transSlider">
+                <div class="ts-track"><i id="tsFill"></i></div>
+                <input type="range" class="ts-range ts-lo" min="1" max="120" step="1" id="tsLo" aria-label="Shortest transition break">
+                <input type="range" class="ts-range ts-hi" min="1" max="120" step="1" id="tsHi" aria-label="Longest transition break">
+                <div class="ts-ends"><span id="tsLoLab">1 min</span><span id="tsHiLab">120 min</span></div>
+              </div>
+            </div>
+
+            <div class="card seq-card seq-only" id="seqOpts">
+              <div class="seq-head">
+                <span class="seq-ic" data-icon="settings"></span>
+                <div class="seq-title"><b>At the end of the list</b><small>What happens once the last mode in your order has had its turn.</small></div>
+              </div>
+              <!-- one choice, two answers: a radio group can never end up disagreeing with itself -->
+              <input type="checkbox" data-k="switchLoop" hidden>
+              <div class="opt-grid">
+                <label class="opt pick" data-opt="loop">
+                  <div class="opt-top"><input type="radio" name="seqEnd" value="loop" class="seq-end"><i class="dot"></i><b>Repeat the sequence</b></div>
+                  <small>After the last mode it starts again at the first one, so the sequence can go round again when a mode still has work left for today.</small>
+                </label>
+                <label class="opt pick" data-opt="stop">
+                  <div class="opt-top"><input type="radio" name="seqEnd" value="stop" class="seq-end"><i class="dot"></i><b>Stop after the last mode</b></div>
+                  <small>The sequence runs through your order once and then stops for the day. It starts again tomorrow.</small>
+                </label>
+                <div class="opt">
+                  <div class="opt-top"><b>Quick order</b></div>
+                  <select class="select" id="seqPreset"></select>
+                  <small>Pick a ready-made order, or arrange the cards above yourself.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="savebar" id="saveSequence" hidden><span>You have unsaved changes</span><button class="btn btn-ghost" type="button" data-revert><span>Revert</span></button><button class="btn btn-primary" type="button" data-save data-icon="check"><span>Save sequence</span></button></div>
+          </div>
+
+          <aside class="seq-side seq-only">
+            <div class="card seq-card">
+              <div class="seq-head small">
+                <span class="seq-ic" data-icon="eye"></span>
+                <div class="seq-title"><b>Live preview</b><small>How the sequence will run with the numbers you have now.</small></div>
+              </div>
+              <div class="seq-prev" id="seqPrev"></div>
+            </div>
+            <div class="card seq-card">
+              <div class="seq-head small">
+                <span class="seq-ic" data-icon="gauge"></span>
+                <div class="seq-title"><b>Right now</b></div>
+                <span class="pill idle" id="seqPill"><span class="dot"></span><span id="seqPillText">Ready</span></span>
+              </div>
+              <div class="seq-now" id="seqNow"></div>
+            </div>
+            <div class="card seq-card seq-tips">
+              <div class="seq-head small">
+                <span class="seq-ic" data-icon="info"></span>
+                <div class="seq-title"><b>Good to know</b></div>
+              </div>
+              <ul class="checks">
+                <li>Every mode keeps <b>its own</b> target, delays, breaks and ON / OFF hours.</li>
+                <li>The transition break is <b>always taken</b> - the next mode never starts early.</li>
+                <li>A mode that is finished for today, or that X has limited, is <b>passed over</b>.</li>
+                <li>Pick a mode yourself at any time and <b>your choice wins</b>.</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+        <div class="cmt-stack" id="cmtSettings" data-for="comment"></div>
+        <div class="presets" id="presets" data-for="follow"></div>
+        <div class="presets unf-presets th-unf" id="unfPresets" data-for="unfollow"></div>
+        <div class="presets bk-presets th-bk" id="bkPresets" data-for="followback"></div>
+        <div class="split" data-for="follow unfollow followback">
+          <div class="form-stack" data-form="autopilot">
+            <input type="hidden" data-k="runMode">
+            <input type="hidden" data-k="unfPace">
+            <input type="hidden" data-k="bkPace">
+            <div class="card fs unf-card" data-for="unfollow">
+              <div class="fs-head"><span data-icon="userX"></span><div><b>U1. How many unfollows</b><small><strong>Step 1:</strong> everyone you follow who doesn't follow you back is unfollowed, in the order you pick in <strong>Who first</strong> (oldest first by default). <strong>Step 2:</strong> after that, people GrowX followed who didn't follow back within the days below. Unfollow mode never follows anyone, and - unless you switch on U6 - never unfollows someone who follows you.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Unfollows per day</label><div class="with-unit"><input class="input num" type="number" min="10" max="1000" data-k="unfollowDaily"><span>/ day</span></div><span class="hint">400-900 as you like.</span></div>
+                <div class="field hr-field" data-hr="unfollow"><label>Per hour</label><label class="switch hr-auto"><input type="checkbox" data-k="hourlyAuto"><span class="track"></span><span>Auto <em>(recommended)</em></span></label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="300" data-k="unfHourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="unfollow"></span></div>
+                <div class="field"><label>Unfollow if no follow-back after</label><div class="with-unit"><input class="input num" type="number" min="1" max="60" data-k="unfollowAfterDays"><span>days</span></div><span class="hint">6-7 days is typical.</span></div>
+                <div class="field"><label>Who first</label><select class="select" data-k="unfOrder"><optgroup label="Only the people who don't follow you back"><option value="old">Oldest following first</option><option value="new">Newest following first</option><option value="lost">People who unfollowed you first</option></optgroup><optgroup label="Everyone you follow (follow-backs too)"><option value="all-old">Unfollow everyone · oldest first</option><option value="all-new">Unfollow everyone · newest first</option></optgroup></select><span class="hint" id="unfOrderHint">Oldest = the accounts you followed longest ago go first. It works through the whole list, one by one.</span></div>
+                <div class="field"><label>Unfollows per turn <i>mode sequence only</i></label><div class="with-unit"><input class="input num" type="number" min="0" max="100000" data-k="unfTurn"><span>/ turn</span></div><span class="hint">Used only when <strong>Mode sequence</strong> is on: after this many unfollows GrowX hands over to the next mode and comes back to Unfollow later. <strong>0</strong> = it does the whole day's number in one turn.</span></div>
+              </div>
+            </div>
+            <div class="card fs" data-for="unfollow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>U2. Time between unfollows</b><small>A random wait inside your range before every unfollow, so it never looks like a clock.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Delay between unfollows</label><div class="duo"><div class="with-unit"><input class="input num" type="number" min="5" data-k="unfMinDelay"><span>sec</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="5" data-k="unfMaxDelay"><span>sec</span></div></div><span class="hint">25-60 sec is a good, safe pace.</span></div>
+                <div class="field"><label>Longer "human" pauses</label><div class="with-unit"><input class="input num" type="number" min="0" max="50" data-k="unfLongPause"><span>%</span></div><span class="hint">share of unfollows followed by a 2-4x longer pause.</span></div>
+              </div>
+            </div>
+            <div class="card fs" data-for="unfollow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>U3. Unfollow breaks</b><small>"After 20 to 25 unfollows, rest 15 to 20 minutes", repeated all day. Both halves are a range, and a break is always a random value inside it - never outside. Unfollow's break settings are its own: Follow (3) and Follow back (B4) have their own.</small></div></div>
+              <div class="fgrid">
+                <div class="field batch-field" data-batch="unfollow">
+                  <label>Take a break after</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="500" data-k="unfRestEveryMin"><span>unfollows</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="0" max="500" data-k="unfRestEvery"><span>unfollows</span></div>
+                  </div>
+                  <div class="batch-preview" data-batch-preview data-mk="unfRestMinutes" data-word="unfollows"></div>
+                  <span class="hint">Same number in both boxes = always exactly that many. 0 in "At most" = no breaks (not recommended).</span>
+                </div>
+                <div class="field batch-field">
+                  <label>Break length</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="240" data-k="unfRestMinutes"><span>min</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="1" max="240" data-k="unfRestMinutesMax"><span>min</span></div>
+                  </div>
+                  <span class="hint">This range replaces the old "break randomness" %. Your old setting was carried over into the "At most" box.</span>
+                </div>
+              </div>
+            </div>
+            <div class="card fs daily-card" data-for="unfollow" data-dn="unfollow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>U4. Daily ON / OFF time</b><small>When <strong>Unfollow</strong> works each day. GrowX turns <strong>ON by itself</strong> at the ON time and <strong>OFF</strong> at the OFF time, on the days you pick - no clicking. It also turns off earlier once today's number is done. Follow and Follow back have their own ON / OFF time (6, B5); the days are shared.</small></div></div>
+              <div class="dn-top">
+                <div class="dn-times">
+                  <div class="field"><label>Turns ON at</label><input class="input dn-time" type="time" data-k="unfollowStart"></div>
+                  <div class="field"><label>Turns OFF at</label><input class="input dn-time" type="time" data-k="unfollowEnd"></div>
+                  <div class="dn-len" data-dn-len></div>
+                </div>
+                <div class="dn-bar" data-dn-bar></div>
+                <p class="dn-status" data-dn-status></p>
+              </div>
+              <div class="field"><label>Days it works</label>
+                <label class="switch same-days"><input type="checkbox" id="unfSameDays"><span class="track"></span><span>Same days as Follow</span></label>
+                <div class="days" data-days="unfollow"></div>
+                <span class="hint">Unfollow can keep its own days - for example clean up at the weekend only.</span>
+              </div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="autoStart"><span class="track"></span><span>Turn ON by itself every day <em>(no clicking)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="activeHours"><span class="track"></span><span>Turn OFF at the OFF time, and work only on the days above</span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Turns ON</label><select class="select" data-k="autoStartAt"><option value="window">At the ON time (recommended)</option><option value="custom">At another time</option></select></div>
+                <div class="field dn-custom"><label>Other start time</label><input class="input" type="time" data-k="autoStartTime"><span class="hint">Used for "At another time", or when there is no OFF time.</span></div>
+                <div class="field"><label>Start a little late</label><div class="with-unit"><input class="input num" type="number" min="0" max="120" data-k="autoStartJitter"><span>min</span></div><span class="hint">0 to this many minutes late, a different time each day.</span></div>
+              </div>
+              <p class="hint dn-next"></p>
+              <details class="dn-more"><summary>How a day works</summary><p>Number for the day done? It turns OFF and waits for the next day's ON time. Not done by the OFF time? It sleeps and carries on at the next ON time with a fresh daily number. After a safety stop (X refusing, x.com not reachable, signed out) it starts again by itself after a short cool-down, up to 4 times a day. It only waits for you if you paused it yourself, or if X locked, restricted or flagged the account. Chrome must be open (a minimised window is fine).</p></details>
+            </div>
+            <div class="card fs guard-card" data-for="unfollow">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>U4b. Never unfollow anyone who follows you back</b><small>The guard. While this is on, nobody who follows you back is unfollowed - <strong>whatever U1, U5 and U6 say</strong>. It is checked twice: when the next batch is chosen, and once more in the moment before each unfollow is sent, so an account that follows you back while it waits in the queue is dropped instead. <strong>Leave it on.</strong></small></div><label class="switch fs-switch"><input type="checkbox" data-k="unfNeverMutual"><span class="track"></span></label></div>
+              <div class="sw-row"><div class="sw-txt"><b>Stop when there is nobody left to unfollow</b><small>Rather than waiting quietly, GrowX stops and tells you once everyone still on your list follows you back. Press Start when you want it to look again.</small></div><label class="switch"><input type="checkbox" data-k="unfStopWhenEmpty"><span class="track"></span></label></div>
+              <p class="hint guard-live" id="unfGuardLive"></p>
+            </div>
+            <div class="card fs" data-for="unfollow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>U5. Inactive accounts</b><small>Also unfollow accounts that hardly post any more - <strong>even if they follow you back</strong>. GrowX counts their posts, replies and reposts in the period below. Runs alongside the old list, in the waits between unfollows. Note: some of them may unfollow you back later.</small></div><label class="switch fs-switch"><input type="checkbox" data-k="unfInactive"><span class="track"></span></label></div>
+              <div class="fgrid">
+                <div class="field"><label>Look at the last</label><div class="with-unit"><input class="input num" type="number" min="7" max="365" data-k="unfInactiveDays"><span>days</span></div><span class="hint">60 days = 2 months.</span></div>
+                <div class="field"><label>Inactive if fewer than</label><div class="with-unit"><input class="input num" type="number" min="1" max="20" data-k="unfInactiveMinPosts"><span>posts</span></div><span class="hint">5 = fewer than 5 posts in that time.</span></div>
+              </div>
+              <p class="hint" id="inactHint"></p>
+            </div>
+            <div class="card fs" data-for="unfollow">
+              <div class="fs-head"><span data-icon="userX"></span><div><b>U6. Also unfollow the people who follow you back</b><small>Your daily number is the <strong>most</strong> GrowX unfollows - if fewer non-followers are due, should it fill the rest by also unfollowing people who <strong>follow you back and are active</strong>? <strong>Off (recommended):</strong> they are never unfollowed - GrowX only does what is due and rests. <strong>On:</strong> once no non-follower is due, it unfollows followers too, in your <strong>Who first</strong> order (U1), until today's number is reached. They stay your followers; you just stop following them.</small></div><label class="switch fs-switch"><input type="checkbox" data-k="unfActiveToo"><span class="track"></span></label></div>
+              <p class="hint" id="actHint"></p>
+            </div>
+            <div class="card fs" data-for="unfollow">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>U7. Never unfollow</b><small>Friends, brands, anyone you want to keep - even if they don't follow you back.</small></div></div>
+              <div class="field"><textarea class="textarea" rows="2" data-k="unfollowKeep" placeholder="@friend, @brand, @favourite - one or many" spellcheck="false"></textarea></div>
+              <div class="unf-status" id="unfStatus"></div>
+            </div>
+            <div class="card fs ladder" data-for="unfollow" id="ladUnfollow">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>U8. When X refuses or an unfollow fails</b><small>If X says no, or an unfollow fails, GrowX protects your account in <strong>4 steps</strong>. Write the time of each step yourself, and switch a step off if you do not want it. Each mode has its own settings.</small></div></div>
+              <div class="lad-steps">
+                <div class="lad-step" data-lad="1">
+                  <span class="lad-n">1</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>X refuses (or an unfollow fails) - take a break</b><label class="switch" title="Step 1 on / off"><input type="checkbox" data-k="unfRefuse0On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="unfRefuse0Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="unfRefuse0Max"><span>min</span></div><small>same number twice = exactly that long (18 = 18 min)</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="2">
+                  <span class="lad-n">2</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again right after that break - longer break</b><label class="switch" title="Step 2 on / off"><input type="checkbox" data-k="unfRefuse1On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="unfRefuse1Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="unfRefuse1Max"><span>min</span></div><small>a random time in between, never shorter than step 1</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="3">
+                  <span class="lad-n">3</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again - long break</b><label class="switch" title="Step 3 on / off"><input type="checkbox" data-k="unfRefuse2On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="unfRefuse2Min"><span>hours</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="unfRefuse2Max"><span>hours</span></div><small>never shorter than step 2</small></div>
+                  </div>
+                </div>
+                <div class="lad-step fixed" data-lad="4">
+                  <span class="lad-n">4</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused once more - stop for the rest of today</b><span class="lad-always">always on</span></div>
+                    <p class="lad-note">Unfollowing stops until tomorrow. Follow and Follow back are not affected. The next day GrowX starts again by itself, from step 1 - keep <b>Turn ON by itself every day</b> on (Daily ON / OFF time).</p>
+                  </div>
+                </div>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Count a failed unfollow after</label><div class="with-unit"><input class="input num" type="number" min="1" max="20" data-k="failBreakAfter"><span>in a row</span></div><span class="hint">1 = the very first failed unfollow starts step 1. When X itself says no or slow down, it always counts at once. One unfollow that works after a break starts the plan again from step 1.</span></div>
+              </div>
+              <p class="hint lad-hint" id="ladUnfollowHint"></p>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="userPlus"></span><div><b>B1. How many follow-backs</b><small>Everyone who follows you but you don't follow yet is followed back - <strong>newest follower first</strong> by default, the oldest last. Accounts you already follow are never touched. Follow back never unfollows anyone, and it uses the same safety rules as Follow.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Follow-backs per day</label><div class="with-unit"><input class="input num" type="number" min="10" max="1000" data-k="bkDaily"><span>/ day</span></div><span class="hint">Your target. It keeps going until this number is done, then stops for the day.</span></div>
+                <div class="field hr-field" data-hr="followback"><label>Per hour</label><label class="switch hr-auto"><input type="checkbox" data-k="hourlyAuto"><span class="track"></span><span>Auto <em>(recommended)</em></span></label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="200" data-k="bkHourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="followback"></span></div>
+                <div class="field"><label>Who first</label><select class="select" data-k="bkOrder"><option value="new">Newest followers first</option><option value="old">Oldest followers first</option></select><span class="hint">Newest = whoever followed you most recently. It works through the whole list, one by one.</span></div>
+                <div class="field"><label>Follow-backs per turn <i>mode sequence only</i></label><div class="with-unit"><input class="input num" type="number" min="0" max="100000" data-k="bkTurn"><span>/ turn</span></div><span class="hint">Used only when <strong>Mode sequence</strong> is on: after this many follow-backs GrowX hands over to the next mode and comes back to Follow back later. <strong>0</strong> = it does the whole day's number in one turn.</span></div>
+              </div>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>B2. X's follow limit (shared with Follow)</b><small>X counts every follow the same, whether it came from Follow or Follow back. These three numbers are shared: changing them here changes them for Follow too.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Daily limit (last 24 hours)</label><div class="with-unit"><input class="input num" type="number" min="1" max="3000" data-k="dailyLimit"><span>/ day</span></div><span class="hint" id="bkDailyHint">Follows and follow-backs together. X allows about 400 a day (more with Premium).</span></div>
+                <div class="field hr-field" data-hr="shared"><label>Hourly pace (shared)</label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="200" data-k="hourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="shared"></span></div>
+                <div class="field"><label>When the daily limit is reached</label><select class="select" data-k="onDailyCap"><option value="stop">Stop for today (recommended)</option><option value="wait">Wait, then continue by itself</option></select><span class="hint">Applies to Follow back too.</span></div>
+                <div class="field"><label>Maximum run time per day</label><div class="with-unit"><input class="input num" type="number" min="0" max="24" data-k="maxRunHours"><span>hours</span></div><span class="hint">Safety stop, shared with Follow. Waiting for new followers does not count. 0 = no limit. Keep it above the "Real working time" on the right, or the day ends before your number.</span></div>
+              </div>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>B3. Time between follow-backs</b><small>A random wait inside your range before every follow-back, so it never looks like a clock.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Delay between follow-backs</label><div class="duo"><div class="with-unit"><input class="input num" type="number" min="5" data-k="bkMinDelay"><span>sec</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="5" data-k="bkMaxDelay"><span>sec</span></div></div><span class="hint">30-75 sec is a good pace.</span></div>
+                <div class="field"><label>Longer "human" pauses</label><div class="with-unit"><input class="input num" type="number" min="0" max="50" data-k="bkLongPause"><span>%</span></div><span class="hint">share of follow-backs followed by a 2-4x longer pause.</span></div>
+              </div>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>B4. Follow back breaks</b><small>"After 12 to 15 follow-backs, rest 17 to 22 minutes" - both halves are a range, and every break is a random value inside it. Follow back's break settings are its own: Follow (3) and Unfollow (U3) have their own.</small></div></div>
+              <div class="fgrid">
+                <div class="field batch-field" data-batch="followback">
+                  <label>Take a break after</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="500" data-k="bkRestEveryMin"><span>follow-backs</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="0" max="500" data-k="bkRestEvery"><span>follow-backs</span></div>
+                  </div>
+                  <div class="batch-preview" data-batch-preview data-mk="bkRestMinutes" data-word="follow-backs"></div>
+                  <span class="hint">Same number in both boxes = always exactly that many. 0 in "At most" = no breaks.</span>
+                </div>
+                <div class="field batch-field">
+                  <label>Break length</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="240" data-k="bkRestMinutes"><span>min</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="1" max="240" data-k="bkRestMinutesMax"><span>min</span></div>
+                  </div>
+                  <span class="hint">Follow back's own range, nothing to do with Follow or Unfollow. Same number in both boxes = always exactly that long.</span>
+                </div>
+              </div>
+            </div>
+            <div class="card fs daily-card bk-card" data-for="followback" data-dn="followback">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>B5. Daily ON / OFF time</b><small>When <strong>Follow back</strong> works each day. GrowX turns <strong>ON by itself</strong> at the ON time and <strong>OFF</strong> at the OFF time, on the days you pick - no clicking. It also turns off earlier once today's number is done. Follow and Unfollow have their own ON / OFF time (6, U4); the days are shared.</small></div></div>
+              <div class="dn-top">
+                <div class="dn-times">
+                  <div class="field"><label>Turns ON at</label><input class="input dn-time" type="time" data-k="bkStart"></div>
+                  <div class="field"><label>Turns OFF at</label><input class="input dn-time" type="time" data-k="bkEnd"></div>
+                  <div class="dn-len" data-dn-len></div>
+                </div>
+                <div class="dn-bar" data-dn-bar></div>
+                <p class="dn-status" data-dn-status></p>
+              </div>
+              <div class="field"><label>Days it works</label>
+                <label class="switch same-days"><input type="checkbox" id="bkSameDays"><span class="track"></span><span>Same days as Follow</span></label>
+                <div class="days" data-days="followback"></div>
+                <span class="hint">Follow back can keep its own days, separate from Follow and Unfollow.</span>
+              </div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="autoStart"><span class="track"></span><span>Turn ON by itself every day <em>(no clicking)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="activeHours"><span class="track"></span><span>Turn OFF at the OFF time, and work only on the days above</span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Turns ON</label><select class="select" data-k="autoStartAt"><option value="window">At the ON time (recommended)</option><option value="custom">At another time</option></select></div>
+                <div class="field dn-custom"><label>Other start time</label><input class="input" type="time" data-k="autoStartTime"><span class="hint">Used for "At another time", or when there is no OFF time.</span></div>
+                <div class="field"><label>Start a little late</label><div class="with-unit"><input class="input num" type="number" min="0" max="120" data-k="autoStartJitter"><span>min</span></div><span class="hint">0 to this many minutes late, a different time each day.</span></div>
+              </div>
+              <p class="hint dn-next"></p>
+              <details class="dn-more"><summary>How a day works</summary><p>Number for the day done? It turns OFF and waits for the next day's ON time. Not done by the OFF time? It sleeps and carries on at the next ON time with a fresh daily number. After a safety stop (X refusing, x.com not reachable, signed out) it starts again by itself after a short cool-down, up to 4 times a day. It only waits for you if you paused it yourself, or if X locked, restricted or flagged the account. Chrome must be open (a minimised window is fine).</p></details>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="badge"></span><div><b>B6. Verified accounts only</b><small>Follow back <strong>only the followers who have a verified badge</strong> (blue, gold or grey check). Everyone else is skipped. Most followers are not verified, so GrowX looks through your whole follower list to find them - far fewer than your daily number may qualify.</small></div><label class="switch fs-switch"><input type="checkbox" data-k="bkVerifiedOnly"><span class="track"></span></label></div>
+              <p class="hint" id="bkVerHint"></p>
+            </div>
+            <div class="card fs bk-card" data-for="followback">
+              <div class="fs-head"><span data-icon="filter"></span><div><b>B7. Who to skip</b><small>Every follower is looked up again right before following back. If X doesn't show something clearly (for example a post count it can't read), that follower is skipped - never guessed - and looked at again after a day. Accounts on your Never-follow list (Settings) are always skipped.</small></div></div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="bkSkipInactive"><span class="track"></span><span>Skip inactive accounts (they hardly post)</span></label>
+                <label class="switch"><input type="checkbox" data-k="bkSkipProtected"><span class="track"></span><span>Skip private accounts</span></label>
+                <label class="switch"><input type="checkbox" data-k="bkSkipNoPhoto"><span class="track"></span><span>Skip accounts without a profile photo</span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Look at the last</label><div class="with-unit"><input class="input num" type="number" min="7" max="365" data-k="bkInactiveDays"><span>days</span></div><span class="hint">60 days = 2 months.</span></div>
+                <div class="field"><label>Inactive if fewer than</label><div class="with-unit"><input class="input num" type="number" min="1" max="20" data-k="bkMinPosts"><span>posts</span></div><span class="hint">5 = fewer than 5 posts, replies and reposts in that time.</span></div>
+              </div>
+              <p class="hint" id="bkInactHint"></p>
+              <div class="unf-status bk-status" id="bkStatus"></div>
+            </div>
+            <div class="card fs ladder bk-card" data-for="followback" id="ladBk">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>B8. When X refuses or a follow-back fails</b><small>If X says no, or a follow-back fails, GrowX protects your account in <strong>4 steps</strong>. Write the time of each step yourself, and switch a step off if you do not want it. Each mode has its own settings.</small></div></div>
+              <div class="lad-steps">
+                <div class="lad-step" data-lad="1">
+                  <span class="lad-n">1</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>X refuses (or a follow-back fails) - take a break</b><label class="switch" title="Step 1 on / off"><input type="checkbox" data-k="bkRefuse0On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="bkRefuse0Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="bkRefuse0Max"><span>min</span></div><small>same number twice = exactly that long (18 = 18 min)</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="2">
+                  <span class="lad-n">2</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again right after that break - longer break</b><label class="switch" title="Step 2 on / off"><input type="checkbox" data-k="bkRefuse1On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="bkRefuse1Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="bkRefuse1Max"><span>min</span></div><small>a random time in between, never shorter than step 1</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="3">
+                  <span class="lad-n">3</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again - long break</b><label class="switch" title="Step 3 on / off"><input type="checkbox" data-k="bkRefuse2On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="bkRefuse2Min"><span>hours</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="bkRefuse2Max"><span>hours</span></div><small>never shorter than step 2</small></div>
+                  </div>
+                </div>
+                <div class="lad-step fixed" data-lad="4">
+                  <span class="lad-n">4</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused once more - stop for the rest of today</b><span class="lad-always">always on</span></div>
+                    <p class="lad-note">Following <b>and</b> Follow back both stop until tomorrow (X counts them together). The next day GrowX starts again by itself, from step 1 - keep <b>Turn ON by itself every day</b> on (Daily ON / OFF time). Unfollow is not affected.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Count a failed follow-back after</label><div class="with-unit"><input class="input num" type="number" min="1" max="20" data-k="failBreakAfter"><span>in a row</span></div><span class="hint">1 = the very first failed follow-back starts step 1. When X itself says no or slow down, it always counts at once. One follow-back that works after a break starts the plan again from step 1.</span></div>
+              </div>
+              <p class="hint lad-hint" id="ladBkHint"></p>
+            </div>
+            <div class="card fs plan-helper" data-for="follow">
+              <div class="fs-head"><span data-icon="gauge"></span><div><b>Plan helper: fit my day</b><small>Tell it how many follows you want and how many hours you can give. It works out the smallest batch size that fits, keeping your delays and break length. Nothing changes until you press "Use this plan" and then Save.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Follows per day</label><div class="with-unit"><input class="input num" id="phGoal" type="number" min="10" max="3000" value="400"><span>follows</span></div></div>
+                <div class="field"><label>Finish within</label><div class="with-unit"><input class="input num" id="phHours" type="number" min="1" max="24" step="0.5" value="10"><span>hours</span></div></div>
+                <div class="field"><label>Break length</label><div class="with-unit"><input class="input num" id="phBreak" type="number" min="1" max="120"><span>min</span></div></div>
+                <div class="field"><label>Delay between follows</label><select class="select" id="phDelay"><option value="keep">Keep my current delays</option><option value="30-60">30-60 sec</option><option value="40-70">40-70 sec (safer)</option><option value="60-100">60-100 sec (gentlest)</option></select><span class="hint">Longer delays are safer but need bigger batches to fit the same hours.</span></div>
+              </div>
+              <p class="ph-result" id="phResult"></p>
+              <button type="button" class="btn btn-primary" id="phApply"><span>Use this plan</span></button>
+            </div>
+            <div class="card fs" data-for="follow">
+              <div class="fs-head"><span data-icon="gauge"></span><div><b>1. How many follows</b><small>Your target and your limits. Changing any value switches to a custom pace.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Run target (stop exactly after)</label><div class="with-unit"><input class="input num" type="number" min="0" max="100000" data-k="sessionTarget"><span>follows</span></div><span class="hint">e.g. 400. It stops right after the last one and never goes past it. 0 = no target, run until a limit or Stop.</span></div>
+                <div class="field"><label>Daily limit (last 24 hours)</label><div class="with-unit"><input class="input num" type="number" min="1" max="3000" data-k="dailyLimit"><span>/ day</span></div><span class="hint" id="dailyHint">300-400 is common. X allows about 400 a day (more with Premium). Counts follows and follow-backs together.</span></div>
+                <div class="field"><label>How the day is counted</label><select class="select" data-k="dailyWindow"><option value="calendar">Calendar day (resets at midnight)</option><option value="rolling">Rolling 24 hours (strictest)</option></select><span class="hint">Calendar fits "400 a day". Rolling matches X's own counting more closely.</span></div>
+                <div class="field"><label>When the daily limit is reached</label><select class="select" data-k="onDailyCap"><option value="stop">Stop for today (recommended)</option><option value="wait">Wait, then continue by itself</option></select><span class="hint">"Wait" can mean a pause of many hours, until your oldest follow is 24 h old.</span></div>
+                <div class="field"><label>Maximum run time per day</label><div class="with-unit"><input class="input num" type="number" min="0" max="24" data-k="maxRunHours"><span>hours</span></div><span class="hint">Safety stop: it ends the day after this many hours, even if the target is not reached. 0 = no limit. 8-12 is a natural working day.</span></div>
+                <div class="field"><label>Who first</label><select class="select" data-k="followOrder"><option value="score">Best match first (recommended)</option><option value="new">Newest found first</option><option value="old">Oldest found first</option></select><span class="hint" id="followOrderHint">Best match = the highest follow-back score in your queue goes first.</span></div>
+                <div class="field hr-field" data-hr="follow"><label>Per hour</label><label class="switch hr-auto"><input type="checkbox" data-k="hourlyAuto"><span class="track"></span><span>Auto <em>(recommended)</em></span></label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="200" data-k="hourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="follow"></span></div>
+              </div>
+            </div>
+            <div class="card fs" data-for="follow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>2. Time between follows</b><small>A random delay inside your range, so it does not look like a clock.</small></div></div>
+              <div class="fgrid">
+                <div class="field"><label>Delay between follows</label><div class="duo"><div class="with-unit"><input class="input num" type="number" min="5" data-k="minDelay"><span>sec</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="5" data-k="maxDelay"><span>sec</span></div></div><span class="hint">A random wait inside this range before every follow. Longer is safer: 40 sec and up looks human, under 20 sec is quick enough that X may notice - the Safety box on the right says where you stand.</span></div>
+                <div class="field"><label>Longer "human" pauses</label><div class="with-unit"><input class="input num" type="number" min="0" max="50" data-k="longPauseChance"><span>%</span></div><span class="hint">share of follows followed by a 2-4x longer pause. 0 = never.</span></div>
+              </div>
+            </div>
+            <div class="card fs" data-for="follow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>3. Main break</b><small>"After 12 to 15 follows, rest 17 to 22 minutes" - both halves are a range, and every break is a random value inside it, never outside. Put the same number in both boxes to make it exact.</small></div></div>
+              <div class="fgrid">
+                <div class="field batch-field" data-batch="follow">
+                  <label>Take a break after</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="500" data-k="restEveryMin"><span>follows</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="0" max="500" data-k="restEvery"><span>follows</span></div>
+                  </div>
+                  <div class="batch-preview" data-batch-preview data-mk="restMinutes" data-word="follows"></div>
+                  <span class="hint">Same number in both boxes = always exactly that many. 0 in "At most" = no breaks.</span>
+                </div>
+                <div class="field batch-field">
+                  <label>Break length</label>
+                  <div class="batch-box">
+                    <div class="bx"><small>At least</small><input class="input num" type="number" min="1" max="240" data-k="restMinutes"><span>min</span></div>
+                    <div class="bx-to">to</div>
+                    <div class="bx"><small>At most <i>never more</i></small><input class="input num" type="number" min="1" max="240" data-k="restMinutesMax"><span>min</span></div>
+                  </div>
+                  <span class="hint">Every break is a random length inside this range - never shorter, never longer. Same number in both boxes = always exactly that long (17 to 17 = 17 min).</span>
+                </div>
+              </div>
+            </div>
+            <div class="card fs" data-for="follow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>4. Extra breaks</b><small>Add more break rules on top of the main one, e.g. every 100 follows rest 60 min. If two are due together, the longer break is taken.</small></div></div>
+              <div id="extraBreaks" class="xb-list"></div>
+              <button type="button" class="btn btn-ghost" id="addBreak"><span>+ Add a break rule</span></button>
+            </div>
+            <div class="card fs ladder" data-for="follow" id="ladFollow">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>5. When X refuses or a follow fails</b><small>If X says no, or a follow fails, GrowX protects your account in <strong>4 steps</strong>. Write the time of each step yourself, and switch a step off if you do not want it. Each mode has its own settings.</small></div></div>
+              <div class="lad-steps">
+                <div class="lad-step" data-lad="1">
+                  <span class="lad-n">1</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>X refuses (or a follow fails) - take a break</b><label class="switch" title="Step 1 on / off"><input type="checkbox" data-k="refuse0On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="refuse0Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="refuse0Max"><span>min</span></div><small>same number twice = exactly that long (18 = 18 min)</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="2">
+                  <span class="lad-n">2</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again right after that break - longer break</b><label class="switch" title="Step 2 on / off"><input type="checkbox" data-k="refuse1On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="refuse1Min"><span>min</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="1" max="720" data-k="refuse1Max"><span>min</span></div><small>a random time in between, never shorter than step 1</small></div>
+                  </div>
+                </div>
+                <div class="lad-step" data-lad="3">
+                  <span class="lad-n">3</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused again - long break</b><label class="switch" title="Step 3 on / off"><input type="checkbox" data-k="refuse2On"><span class="track"></span></label></div>
+                    <div class="lad-fields"><span>Break for</span><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="refuse2Min"><span>hours</span></div><em>to</em><div class="with-unit"><input class="input num" type="number" min="0.25" max="24" step="0.25" data-k="refuse2Max"><span>hours</span></div><small>never shorter than step 2</small></div>
+                  </div>
+                </div>
+                <div class="lad-step fixed" data-lad="4">
+                  <span class="lad-n">4</span>
+                  <div class="lad-main">
+                    <div class="lad-title"><b>Refused once more - stop for the rest of today</b><span class="lad-always">always on</span></div>
+                    <p class="lad-note">Following <b>and</b> Follow back both stop until tomorrow (X counts them together). The next day GrowX starts again by itself, from step 1 - keep <b>Turn ON by itself every day</b> on (Daily ON / OFF time). Unfollow is not affected.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Count a failed follow after</label><div class="with-unit"><input class="input num" type="number" min="1" max="20" data-k="failBreakAfter"><span>in a row</span></div><span class="hint">1 = the very first failed follow starts step 1. When X itself says no or slow down, it always counts at once. One follow that works after a break starts the plan again from step 1.</span></div>
+              </div>
+              <p class="hint lad-hint" id="ladFollowHint"></p>
+            </div>
+            <div class="card fs daily-card" data-for="follow" data-dn="follow">
+              <div class="fs-head"><span data-icon="clock"></span><div><b>6. Daily ON / OFF time</b><small>When <strong>Follow</strong> works each day. GrowX turns <strong>ON by itself</strong> at the ON time and <strong>OFF</strong> at the OFF time, on the days you pick - no clicking. It also turns off earlier once your target is reached. Unfollow and Follow back have their own ON / OFF time (U4, B5); the days are shared.</small></div></div>
+              <div class="dn-top">
+                <div class="dn-times">
+                  <div class="field"><label>Turns ON at</label><input class="input dn-time" type="time" data-k="activeStart"></div>
+                  <div class="field"><label>Turns OFF at</label><input class="input dn-time" type="time" data-k="activeEnd"></div>
+                  <div class="dn-len" data-dn-len></div>
+                </div>
+                <div class="dn-bar" data-dn-bar></div>
+                <p class="dn-status" data-dn-status></p>
+              </div>
+              <div class="field"><label>Days it works</label><div class="days" data-days="follow" id="days"></div><span class="hint">Unfollow (U4) and Follow back (B5) can either share these days or keep their own.</span></div>
+              <div class="field"><label>Rest days each week</label><div class="with-unit"><input class="input num" type="number" min="0" max="3" data-k="restDays"><span>days off</span></div><span class="hint" id="restHint">Nobody follows people every single day. GrowX picks this many of your working days at random, takes them off completely, and picks different ones next week. <strong>0</strong> = never. Applies to every mode, and needs the <strong>OFF time</strong> switch above to be on.</span></div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="autoStart"><span class="track"></span><span>Turn ON by itself every day <em>(no clicking)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="activeHours"><span class="track"></span><span>Turn OFF at the OFF time, and work only on the days above</span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Turns ON</label><select class="select" data-k="autoStartAt"><option value="window">At the ON time (recommended)</option><option value="custom">At another time</option></select></div>
+                <div class="field dn-custom"><label>Other start time</label><input class="input" type="time" data-k="autoStartTime"><span class="hint">Used for "At another time", or when there is no OFF time.</span></div>
+                <div class="field"><label>Start a little late</label><div class="with-unit"><input class="input num" type="number" min="0" max="120" data-k="autoStartJitter"><span>min</span></div><span class="hint">0 to this many minutes late, a different time each day.</span></div>
+              </div>
+              <p class="hint dn-next" id="nextStart"></p>
+              <details class="dn-more"><summary>How a day works</summary><p>Number for the day done? It turns OFF and waits for the next day's ON time. Not done by the OFF time? It sleeps and carries on at the next ON time with a fresh daily number. After a safety stop (X refusing, x.com not reachable, signed out) it starts again by itself after a short cool-down, up to 4 times a day. It only waits for you if you paused it yourself, or if X locked, restricted or flagged the account. Chrome must be open (a minimised window is fine).</p></details>
+            </div>
+            <div class="card fs" data-for="follow followback">
+              <div class="fs-head"><span data-icon="flame"></span><div><b>7. Warm-up</b><small>Ramp the daily cap up day by day - ideal for new accounts or after a long pause.</small></div><label class="switch fs-switch"><input type="checkbox" data-k="warmup"><span class="track"></span></label></div>
+              <div class="fgrid">
+                <div class="field"><label>Start at</label><div class="with-unit"><input class="input num" type="number" min="5" data-k="warmupStart"><span>/ day</span></div></div>
+                <div class="field"><label>Add each day</label><div class="with-unit"><input class="input num" type="number" min="1" data-k="warmupStep"><span>/ day</span></div></div>
+              </div>
+              <p class="hint" id="warmHint"></p>
+            </div>
+            <div class="card fs">
+              <div class="fs-head"><span data-icon="shield"></span><div><b>8. Account protection</b><small>Always on in the engine: rate-limit back-off, daily-limit detection, "looks automated" detection, halt on sign-out or lock.</small></div></div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="autoSlowdown"><span class="track"></span><span>Also lower my daily/hourly caps and slow down after a warning from X (off = keep my exact plan)</span></label>
+                <label class="switch"><input type="checkbox" data-k="verifyFollows"><span class="track"></span><span>Verify follows stick (shadow-limit detector)</span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Stop for good after failures</label><div class="with-unit"><input class="input num" type="number" min="1" max="50" data-k="failHaltAfter"><span>in a row</span></div><span class="hint">An extra safety stop for failures that never reach a step of the X-refused plan (when "Count a failed ... after" is set higher). 3-6 is safe.</span></div>
+                <div class="field"><label>Stop after X rate limits</label><div class="with-unit"><input class="input num" type="number" min="1" max="50" data-k="rateHaltAfter"><span>in a row</span></div><span class="hint">Only used while steps 1 and 2 of the X-refused plan are switched off: after this many refusals in a row GrowX stops and waits. 3-5 is safe.</span></div>
+                <div class="field"><label>Following cap guard</label><select title="X lets you follow 5,000 accounts, then about 110% of your follower count" class="select" data-k="capMode"><option value="auto">Auto (X's cap)</option><option value="manual">Manual</option><option value="off">Off</option></select></div>
+                <div class="field"><label>Manual cap</label><input class="input num" type="number" min="100" data-k="followingCap"></div>
+              </div>
+            </div>
+          </div>
+          <aside class="card preview sticky estimate" id="estimate">
+            <b>What to expect</b>
+            <p class="hint">Based on your settings and your measured follow-back rate.</p>
+            <div class="est-rows" id="estRows"></div>
+            <p class="est-note" id="estNote"></p>
+            <div class="safety" id="safetyBox"></div>
+          </aside>
+        </div>
+        <div class="savebar" id="saveAutopilot" hidden><span>You have unsaved changes</span><button class="btn btn-ghost" data-revert>Revert</button><button class="btn btn-primary" data-save data-icon="check"><span>Save &amp; apply</span></button></div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="page" data-page="history">
+        <header class="page-head">
+          <div><span class="kicker">Results</span><h1>History</h1><p id="hSub">Everyone GrowX followed, and who followed you back.</p><p class="fb-status" id="hStatus"></p></div>
+          <div class="btn-row">
+            <button class="btn" data-ex="following" data-kind="csv" data-icon="download"><span>Export CSV</span></button>
+            <button class="btn btn-ghost" data-ex="following" data-kind="json"><span>JSON</span></button>
+            <button class="btn btn-primary" id="hCheck" data-icon="refresh"><span>Check follow-backs now</span></button>
+          </div>
+        </header>
+        <div class="toolbar card">
+          <div class="search"><span data-icon="search"></span><input class="input" id="hSearch" placeholder="Search @handle or name"></div>
+          <div class="seg" id="hFilter"><button class="on" data-f="all">All</button><button data-f="back">Followed back</button><button data-f="wait">Waiting</button><button data-f="no">No follow-back</button></div>
+        </div>
+        <div class="card table-card">
+          <div class="trow thead h-cols"><span>Account</span><span>Source</span><span>Score</span><span>Followed</span><span>Result</span></div>
+          <div id="hRows"></div>
+        </div>
+        <div class="more" id="hMore" hidden><button class="btn" id="hMoreBtn"><span>Show more</span></button></div>
+      </section>
+
+      <!-- FOLLOWED BACK -->
+      <section class="page th-bk" data-page="followedback">
+        <header class="page-head">
+          <div><span class="kicker">Follow back mode</span><h1>Followed back</h1><p id="fbSub">Everyone GrowX followed back because they follow you - newest followers first.</p></div>
+          <div class="btn-row"><button class="btn" id="fbExport" data-icon="download"><span>Export CSV</span></button><button class="btn btn-ghost" data-ex="followers" data-kind="csv"><span>All followers CSV</span></button><button class="btn btn-ghost" data-ex="followers" data-kind="json"><span>JSON</span></button></div>
+        </header>
+        <div class="ul-stats" id="fbStats"></div>
+        <div class="toolbar card">
+          <div class="search"><span data-icon="search"></span><input class="input" id="fbSearch" placeholder="Search @handle or name"></div>
+          <div class="seg" id="fbFilter"><button class="on" data-f="all">All</button><button data-f="today">Today</button><button data-f="week">Last 7 days</button></div>
+        </div>
+        <div class="card table-card">
+          <div class="trow thead bk-cols"><span>Account</span><span>Follower</span><span>Their followers</span><span>Followed back</span></div>
+          <div id="fbRows"></div>
+        </div>
+        <div class="more" id="fbMore" hidden><button class="btn" id="fbMoreBtn"><span>Show more</span></button></div>
+      </section>
+
+      <!-- UNFOLLOWED -->
+      <section class="page th-unf" data-page="unfollowed">
+        <header class="page-head">
+          <div><span class="kicker">Unfollow mode</span><h1>Unfollowed</h1><p>Everyone GrowX unfollowed - and whether they were following you or not. Mutual and non-mutual are both in the export.</p></div>
+          <div class="btn-row"><button class="btn" data-ex="unfollowed" data-kind="csv" data-icon="download"><span>Export CSV</span></button><button class="btn btn-ghost" data-ex="unfollowed" data-kind="json"><span>JSON</span></button></div>
+        </header>
+        <div class="ul-stats" id="ulStats"></div>
+        <div class="toolbar card">
+          <div class="search"><span data-icon="search"></span><input class="input" id="ulSearch" placeholder="Search @handle or name"></div>
+          <div class="seg" id="ulFilter"><button class="on" data-f="all">All</button><button data-f="nf">Non-followers</button><button data-f="fb">Followers</button></div>
+        </div>
+        <div class="card table-card">
+          <div class="trow thead ul-cols"><span>Account</span><span>Was</span><span>Why</span><span>Unfollowed</span></div>
+          <div id="ulRows"></div>
+        </div>
+        <div class="more" id="ulMore" hidden><button class="btn" id="ulMoreBtn"><span>Show more</span></button></div>
+      </section>
+
+      <!-- ANALYTICS -->
+      <section class="page th-unf" data-page="lost">
+        <header class="page-head">
+          <div><span class="kicker">Detected unfollowers</span><h1>Unfollowed you</h1><p>Accounts that followed you and later stopped. GrowX notices them during the checks it already makes, so finding them costs nothing extra - and <strong>nobody here is unfollowed automatically</strong>. Tick the ones you want and they go to the front of the Unfollow mode queue, with the same re-check, keep list, daily number and breaks as every other unfollow.</p></div>
+          <div class="btn-row"><button class="btn" id="lostCheck" data-icon="refresh"><span>Check now</span></button><button class="btn btn-ghost btn-sm" id="lostExport" data-icon="download"><span>Export CSV</span></button><button class="btn btn-ghost btn-sm" data-ex="mutuals" data-kind="csv"><span>Mutuals CSV</span></button></div>
+        </header>
+        <div class="ul-stats" id="lostStats"></div>
+        <div class="toolbar card">
+          <div class="search"><span data-icon="search"></span><input class="input" id="lostSearch" placeholder="Search @handle or name"></div>
+          <div class="seg" id="lostFilter"><button class="on" data-f="elig">Can unfollow</button><button data-f="sel">Picked</button><button data-f="done">Unfollowed</button><button data-f="all">All</button></div>
+          <button class="btn btn-ghost btn-sm" id="lostForget" data-icon="trash"><span>Clear list</span></button>
+        </div>
+        <div class="bulk" id="lostBulk" hidden>
+          <b id="lostSel">0 picked</b>
+          <span class="bulk-note" id="lostBulkNote"></span>
+          <button class="btn btn-sm" id="lostNone"><span>Clear pick</span></button>
+          <button class="btn btn-primary btn-sm" id="lostQueue" data-icon="userX"><span>Unfollow these</span></button>
+        </div>
+        <div class="card table-card">
+          <div class="trow thead lost-cols"><label class="cb"><input type="checkbox" id="lostAll"><i></i></label><span>Account</span><span>Followed you</span><span>Stopped</span><span>Found by</span><span>Status</span></div>
+          <div id="lostRows"></div>
+        </div>
+        <div class="more" id="lostMore" hidden><button class="btn" id="lostMoreBtn"><span>Show more</span></button></div>
+      </section>
+
+
+      <!-- COMMENT -->
+      <section class="page th-cmt" data-page="comment">
+        <header class="page-head">
+          <div><span class="kicker">AI replies</span><h1>Comment</h1><p>Paste post links. GrowX reads each post, writes a reply with your prompt, checks it against your rules and - when auto publishing is on - posts it from your own signed-in account, with human pacing.</p></div>
+          <div class="btn-row cmt-head-ctl" id="cmtCtl"></div>
+        </header>
+
+        <div class="cmt-hero" id="cmtHero"></div>
+        <div class="cmt-stats" id="cmtStats"></div>
+        <div id="cmtLinkProg"></div>
+
+        <div class="cmt-tabs" id="cmtTabs">
+          <button class="on" data-ctab="links">Links<em id="tabLinks"></em></button>
+          <button data-ctab="watch">Watch list<em id="tabWatch"></em></button>
+          <button data-ctab="target">Target<em id="tabTarget"></em></button>
+          <button data-ctab="back">Reply-back<em id="tabBack"></em></button>
+        </div>
+
+        <!-- LINKS -->
+        <div class="cmt-grid" data-ctabp="links">
+          <div class="card cmt-links">
+            <div class="card-head"><div><b>Add post links</b><small>One post = one reply, ever. Repeats are dropped.</small></div><small class="muted">New links join the end of the queue, even while it runs</small></div>
+            <label class="lbl" for="cmtText">Paste any way you like: one per line, commas, or mixed with text</label>
+            <textarea class="textarea" id="cmtText" rows="7" spellcheck="false" placeholder="https://x.com/solbuilder/status/1983200114522&#10;https://x.com/defi_maya/status/1983187730091&#10;check this one too x.com/basedtom/status/1983140026617&#10;&#10;add a note for one post after a | - it is added to the prompt for that post only"></textarea>
+            <div class="cmt-chips" id="cmtChips"></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="cmtAdd" data-icon="plus"><span>Add to queue</span></button>
+              <button class="btn" id="cmtImport" data-icon="upload"><span>Import CSV</span></button>
+              <button class="btn btn-ghost" id="cmtClear"><span>Clear</span></button>
+            </div>
+          </div>
+          <div class="card cmt-limits" id="cmtLimits"></div>
+        </div>
+
+        <!-- WATCH LIST -->
+        <div data-ctabp="watch" hidden>
+          <div class="card add-card">
+            <div class="add-row">
+              <textarea class="textarea" id="cmtWatchText" rows="2" placeholder="@creator, @community, https://x.com/brand - up to 50 accounts" spellcheck="false"></textarea>
+              <button class="btn btn-primary btn-lg" id="cmtWatchAdd" data-icon="plus"><span>Add accounts</span></button>
+            </div>
+            <div class="tips"><span data-icon="sparkles"></span><p><b>How it works:</b> while Chrome is open with an x.com tab, GrowX checks these accounts for new posts. A new post goes to the <strong>front</strong> of the queue and gets a draft right away, and you get a notification. Every number - how often it checks, how fresh a post must be, how many per account per day - is in Comment settings, section 7.</p></div>
+          </div>
+          <div class="card table-card">
+            <div class="trow thead cw-cols"><span>Account</span><span>Last post</span><span>Last draft</span><span>Status</span><span></span></div>
+            <div id="cmtWatchRows"></div>
+          </div>
+        </div>
+
+        <!-- TARGET -->
+        <div data-ctabp="target" hidden>
+          <div class="card add-card">
+            <div class="add-row">
+              <textarea class="textarea" id="cmtTargetText" rows="2" placeholder="@someone, https://x.com/someone - accounts you want to follow AND reply to" spellcheck="false"></textarea>
+              <button class="btn btn-primary btn-lg" id="cmtTargetAdd" data-icon="plus"><span>Add accounts</span></button>
+            </div>
+            <div class="tips"><span data-icon="sparkles"></span><p><b>Follow first, then reply.</b> Each account goes to the <strong>front of the Follow queue</strong> and is followed by Follow mode, with its pacing, its daily follow number and the following cap - never outside them. After the follow, GrowX finds that account's newest eligible post and writes a reply for it. A follow with a reply gets followed back far more often than a bare follow.</p></div>
+          </div>
+          <div class="card" id="cmtTargetRate"></div>
+          <div class="card table-card">
+            <div class="trow thead ct-cols"><span>Account</span><span>Followed</span><span>Reply</span><span>Follows back</span><span></span></div>
+            <div id="cmtTargetRows"></div>
+          </div>
+        </div>
+
+        <!-- REPLY-BACK -->
+        <div data-ctabp="back" hidden>
+          <div class="card" id="cmtBackCard"></div>
+        </div>
+
+        <!-- THE ONE QUEUE -->
+        <div class="card table-card" id="cmtQueueCard">
+          <div class="card-head">
+            <div><b>Queue</b><small id="cmtQueueSub">everything from all four tabs</small></div>
+            <div class="btn-row">
+              <div class="seg" id="cmtFilter"><button class="on" data-f="all">All</button><button data-f="ready">Ready</button><button data-f="posted">Posted</button><button data-f="waiting">Waiting</button><button data-f="bad">Skipped / failed</button></div>
+              <select class="select" id="cmtSrcFilter"><option value="">All sources</option><option value="links">Links</option><option value="watch">Watch</option><option value="target">Target</option><option value="back">Reply-back</option></select>
+              <button class="btn btn-ghost btn-sm" id="cmtExport" data-icon="download"><span>Export CSV</span></button>
+            </div>
+          </div>
+          <div class="trow thead cq-cols"><span>#</span><span>Post</span><span>Reply</span><span>Result</span><span>Status</span><span></span></div>
+          <div id="cmtRows"></div>
+          <div class="more" id="cmtMore" hidden><button class="btn" id="cmtMoreBtn"><span>Show more</span></button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><b>What happens after you press Start</b><small>steps 3 to 9 repeat for every link until the queue is empty</small></div></div>
+          <div class="flow">
+            <div class="fs-step"><span class="n">1</span><b>Paste links</b><small>Any format. Add more any time, even while it runs.</small></div>
+            <div class="fs-step"><span class="n">2</span><b>Clean &amp; queue</b><small>Pull out post ids, drop duplicates and posts you already replied to.</small></div>
+            <div class="fs-step"><span class="n">3</span><b>Read the post</b><small>Full text, author, quoted post, the post it answers, images.</small></div>
+            <div class="fs-step"><span class="n">4</span><b>Skip check</b><small>Too old, replies limited, deleted, same author today: skipped and logged.</small></div>
+            <div class="fs-step"><span class="n">5</span><b>AI writes</b><small>Your prompt + the post + your last 10 replies go to the model.</small></div>
+            <div class="fs-step"><span class="n">6</span><b>Rule check</b><small>Banned words, length, lines, lowercase, no emoji or links. Fails are rewritten, then skipped.</small></div>
+            <div class="fs-step"><span class="n">7</span><b>Like (optional)</b><small>Like the post, then wait - the way a person reads before replying.</small></div>
+            <div class="fs-step"><span class="n">8</span><b>Post the reply</b><small>Sent from your own session, then confirmed on X before it counts.</small></div>
+            <div class="fs-step"><span class="n">9</span><b>Wait or rest</b><small>A random delay, a break every few replies, and your hour, day and spend limits.</small></div>
+            <div class="fs-step done"><span class="n" style="background:var(--success)">&#10003;</span><b>Done</b><small>Counted in today's total and kept forever, so the same post never gets a second reply.</small></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMMENT HISTORY -->
+      <section class="page th-cmt" data-page="cmthistory">
+        <header class="page-head">
+          <div><span class="kicker">Comment</span><h1>History &amp; totals</h1><p>Every reply is counted and kept. Each day adds to your all-time total - it only grows.</p></div>
+          <div class="seg" id="chRange"><button data-r="7">7 days</button><button class="on" data-r="14">14 days</button><button data-r="30">30 days</button><button data-r="0">All</button></div>
+        </header>
+        <div class="ch-hero" id="chHero"></div>
+        <div class="kpis" id="chKpis"></div>
+        <div class="card">
+          <div class="card-head"><div><b>Replies per day</b><small id="chChartSub"></small></div></div>
+          <div class="cmt-bars" id="chBars"></div>
+        </div>
+        <div class="card table-card">
+          <div class="card-head"><div><b>Day by day</b><small>running total = every reply from day one up to the end of that day</small></div><button class="btn btn-ghost btn-sm" id="chExport" data-icon="download"><span>Export CSV</span></button></div>
+          <div class="trow thead cd-cols"><span>Day</span><span>Replies</span><span>Drafts</span><span>Skipped</span><span>Failed</span><span>Likes earned</span><span>AI cost</span><span>Running total</span></div>
+          <div id="chRows"></div>
+        </div>
+        <div class="card" id="chBackup"></div>
+      </section>
+
+      <section class="page" data-page="analytics">
+        <header class="page-head">
+          <div><span class="kicker">Insights</span><h1>Analytics</h1><p>What works for your account - measured from your own follows and follow-backs.</p></div>
+        </header>
+        <div class="card planner" id="planner">
+          <div class="pl-left">
+            <span class="kicker">Growth planner</span>
+            <h2>Reach <input class="input goal-input num" type="number" min="0" id="plGoal"> new followers a month</h2>
+            <p id="plText">-</p>
+            <div class="gauge"><div class="gauge-track"><i id="plFill"></i><b id="plMark"></b></div><div class="gauge-legend"><span>0</span><span id="plSafe">safe daily cap</span><span id="plMax">X's limit</span></div></div>
+          </div>
+          <div class="pl-right" id="plFacts"></div>
+        </div>
+        <div class="an-grid">
+          <div class="card chart-card"><div class="card-head"><div><b>Followers</b><small>last 90 days</small></div></div><div class="chart-box" id="an90"></div></div>
+          <div class="card chart-card"><div class="card-head"><div><b>Follows &amp; follow-backs</b><small>per day, last 30 days</small></div><div class="legend"><i class="lg-a"></i>follows <i class="lg-b"></i>follow-backs</div></div><div class="chart-box" id="anDaily"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-head pad"><div><b>Source leaderboard</b><small>Follow-back rate per source - GrowX gives the best ones priority automatically</small></div></div>
+          <div class="trow thead l-cols"><span>Source</span><span>Followed</span><span>Followed back</span><span>Rate</span><span>Verdict</span></div>
+          <div id="lbRows"></div>
+        </div>
+        <div class="an-grid">
+          <div class="card chart-card"><div class="card-head"><div><b>Score vs reality</b><small>real follow-back rate by score band</small></div></div><div class="bands" id="anBands"></div></div>
+          <div class="card chart-card"><div class="card-head"><div><b>Best hours</b><small>follow-back rate by hour you followed</small></div></div><div class="chart-box" id="anHours"></div></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" data-page="settings">
+        <header class="page-head"><div><span class="kicker">Preferences</span><h1>Settings</h1><p>Background behaviour, queue freshness, backups and diagnostics.</p></div></header>
+        <div class="card fs">
+          <div class="fs-head"><span data-icon="download"></span><div><b>Export your lists</b><small>Every list is also on its own page - this takes the lot in one go, as separate files. Each row carries the @handle and the x.com link.</small></div></div>
+          <div class="btn-row">
+            <button class="btn btn-primary" data-ex="all" data-kind="csv" data-icon="download"><span>Every list as CSV</span></button>
+            <button class="btn" data-ex="all" data-kind="json"><span>Every list as JSON</span></button>
+          </div>
+          <div class="ex-chips">
+            <button class="btn btn-ghost btn-sm" data-ex="unfollowed" data-kind="csv"><span>Unfollowed</span></button>
+            <button class="btn btn-ghost btn-sm" data-ex="following" data-kind="csv"><span>Following</span></button>
+            <button class="btn btn-ghost btn-sm" data-ex="followers" data-kind="csv"><span>Followers</span></button>
+            <button class="btn btn-ghost btn-sm" data-ex="mutuals" data-kind="csv"><span>Mutuals</span></button>
+            <button class="btn btn-ghost btn-sm" data-ex="comments" data-kind="csv"><span>Replies</span></button>
+            <button class="btn btn-ghost btn-sm" data-ex="history" data-kind="csv"><span>Everything GrowX did</span></button>
+          </div>
+          <p class="hint">A follower GrowX has never seen a name for is exported by user id, with an <b>x.com/i/user/…</b> link that opens the same profile.</p>
+        </div>
+        <div class="set-grid">
+          <div class="card fs" data-form="settings">
+            <div class="fs-head"><span data-icon="bolt"></span><div><b>Background run</b><small>GrowX runs in the background until you press Stop.</small></div></div>
+            <div class="switch-grid one">
+              <label class="switch"><input type="checkbox" data-k="autoResume"><span class="track"></span><span>Continue automatically after Chrome restarts</span></label>
+              <label class="switch"><input type="checkbox" data-k="keepAwake"><span class="track"></span><span>Keep the computer awake while running</span></label>
+              <label class="switch"><input type="checkbox" data-k="notifications"><span class="track"></span><span>Desktop notifications (warnings, milestones)</span></label>
+              <label class="switch"><input type="checkbox" data-k="pauseResume"><span class="track"></span><span>Every Pause starts again by itself</span></label>
+            </div>
+            <div class="fgrid">
+              <div class="field"><label>Pause lasts</label><div class="with-unit"><input class="input num" type="number" min="1" max="1440" data-k="pauseResumeMins"><span>min</span></div><span class="hint">With the switch above on, pressing <strong>Pause</strong> sets this timer and GrowX starts again by itself when it runs out - a quick pause can never turn into a lost day. Off, a pause lasts until you press Resume. Either way you can set or clear the timer on the <strong>Pause</strong> panel itself.</span></div>
+            </div>
+            <div class="fgrid">
+              <div class="field"><label>Full follower scan every</label><div class="with-unit"><input class="input num" type="number" min="1" max="48" data-k="fbCheckHours"><span>hours</span></div><span class="hint">Each follow is also checked directly 30 min, 2 h, 8 h, 1 day, 3 days, 7 days and 14 days after it.</span></div>
+              <div class="field"><label>Monthly follower goal</label><input class="input num" type="number" min="0" data-k="goalMonthly"></div>
+            </div>
+          </div>
+          <div class="card fs" data-form="settings">
+            <div class="fs-head"><span data-icon="list"></span><div><b>Queue</b><small>How many candidates to keep ready, and how fresh.</small></div></div>
+            <div class="fgrid">
+              <div class="field"><label>Keep ready</label><div class="with-unit"><input class="input num" type="number" min="20" data-k="poolTarget"><span>people</span></div></div>
+              <div class="field"><label>Drop candidates after</label><div class="with-unit"><input class="input num" type="number" min="6" data-k="poolMaxAgeHours"><span>hours</span></div></div>
+              <div class="field"><label>Re-check sources every</label><div class="with-unit"><input class="input num" type="number" min="1" data-k="freshEveryHours"><span>hours</span></div><span class="hint">for their newest followers</span></div>
+              <div class="field"><label>Pages per check</label><input class="input num" type="number" min="1" max="20" data-k="harvestPages"></div>
+            </div>
+          </div>
+          <div class="card fs">
+            <div class="fs-head"><span data-icon="ban"></span><div><b>Never follow</b><small>Usernames GrowX will never follow, whatever the rules say.</small></div></div>
+            <textarea class="textarea" id="blText" rows="4" placeholder="@someone, @another" spellcheck="false"></textarea>
+            <div class="btn-row"><button class="btn btn-soft" id="blSave" data-icon="check"><span>Save list</span></button><span class="hint" id="blCount"></span></div>
+          </div>
+          <div class="card fs">
+            <div class="fs-head"><span data-icon="download"></span><div><b>Backup</b><small>Settings, sources, never-follow list and follow history in one file.</small></div></div>
+            <div class="btn-row"><button class="btn" id="bkExport" data-icon="download"><span>Export backup</span></button><label class="btn" data-icon="upload"><span>Import backup</span><input type="file" id="bkImport" accept="application/json,.json" hidden></label></div>
+          </div>
+          <div class="card fs">
+            <div class="fs-head"><span data-icon="wifi"></span><div><b>Diagnostics</b><small>Checks your X session and the API GrowX uses. Read-only.</small></div></div>
+            <div class="btn-row"><button class="btn" id="hcRun" data-icon="refresh"><span>Run health check</span></button></div>
+            <pre class="health" id="hcOut" hidden></pre>
+          </div>
+          <div class="card fs danger-zone">
+            <div class="fs-head"><span data-icon="trash"></span><div><b>Reset</b><small>Stop the autopilot first.</small></div></div>
+            <div class="btn-row"><button class="btn btn-sm" data-reset="queue"><span>Clear queue</span></button><button class="btn btn-sm" data-reset="history"><span>Clear history &amp; stats</span></button><button class="btn btn-sm btn-danger-soft" data-reset="all"><span>Reset everything</span></button></div>
+          </div>
+        </div>
+        <div class="savebar" id="saveSettings" hidden><span>You have unsaved changes</span><button class="btn btn-ghost" data-revert>Revert</button><button class="btn btn-primary" data-save data-icon="check"><span>Save settings</span></button></div>
+      </section>
+
+      <!-- HELP -->
+      <section class="page" data-page="help">
+        <header class="page-head"><div><span class="kicker">Guide</span><h1>How GrowX works</h1><p>Four modes, one engine - then it runs by itself.</p></div></header>
+        <div class="steps">
+          <div class="card step lift"><i>1</i><b>Sign in to X</b><p>GrowX works through your own signed-in x.com session. No passwords, no API keys, nothing sent anywhere else.</p></div>
+          <div class="card step lift"><i>2</i><b>Add sources</b><p>Profiles in your niche. GrowX reads their newest followers - people active right now who follow accounts like yours.</p></div>
+          <div class="card step lift"><i>3</i><b>It scores everyone</b><p>Follow ratio, audience size, recent activity, real profile, "follow back" language. Only likely follow-backers enter the queue.</p></div>
+          <div class="card step lift"><i>4</i><b>Autopilot follows</b><p>One at a time, human pace, breaks, hourly and daily caps, active hours. It measures who follows back and learns which sources work.</p></div>
+        </div>
+        <div class="help-grid">
+          <div class="card faq">
+            <h2>Questions</h2>
+            <details open><summary>Does it keep running when I close the popup or the dashboard?</summary><p>Yes. The engine lives in the extension's background worker and continues until you press Stop. It survives tab switches, X tab reloads, worker restarts and - unless you turn it off in Settings - Chrome restarts. Keep Chrome open; if it's closed, GrowX continues when you open it again.</p></details>
+            <details><summary>What are the four modes: Follow, Unfollow, Follow back, Comment?</summary><p>Only one runs at a time, and one click switches it (on the Overview or on Autopilot &amp; Safety). <b>Follow</b> follows new people from your sources. <b>Unfollow</b> cleans out non-followers - oldest following first, or newest first if you pick that in U1. <b>Follow back</b> follows the people who follow you but you don't follow yet - newest follower first - until nobody is left. Each mode has its own pace, its own random breaks, its own hours, its own daily number and its own "when X refuses" plan (see below). <b>Comment</b> writes AI replies on the posts you choose and - if you let it - posts them. Follow and Follow back share X's follow limit; Comment has its own, because X counts replies separately. You can also have GrowX work through the modes one after another by itself - see the next question.</p></details>
+            <details><summary>Can GrowX work through all three modes by itself, one after another?</summary><p>Yes - that is <b>Mode sequence</b>, the card at the top of Autopilot &amp; Safety. Switch it on and arrange the three mode cards in the order you want with the arrows; the switch on a card leaves that mode out of the sequence without losing its place. Each card has two numbers of its own: <b>Target per turn</b> (how many it does before handing over) and <b>Target per day</b> (its ceiling for the whole day). When a mode reaches its turn target, GrowX <b>stops it</b>, takes a <b>random transition break</b> inside the range you set, and only <b>once that break has finished</b> does the next mode start. Leave a turn target at 0 and that mode does its whole day in one go. With <b>Repeat the sequence</b> on, the list goes round again, so a day can be several rounds of follow → follow back → unfollow. A mode that is finished for today, or that X has limited today, is passed over, and the <b>Live preview</b> on the right shows exactly how it will run. Pick a mode by hand at any time and your choice wins: the waiting transition is dropped. With switching off, GrowX behaves exactly as before and stays in the one mode you picked.</p></details>
+            <details><summary>Are the breaks random? Can each mode have its own?</summary><p>Yes to both. Every mode has <b>two ranges of its own</b>, and a break is always a random value inside them - never outside: how many actions before a break (<i>at least</i> to <i>at most</i>), and how long the break lasts (<i>at least</i> to <i>at most</i>). Follow sets them in section 3, Follow back in B4 and Unfollow in U3, and none of them affects the others. Put the same number in both boxes and you get exactly that number, which is what older versions did - so nothing changes after an update until you widen a range yourself. Follow's extra break rules (section 4) have their own range too, and the transition break between two modes has its own range in the sequence card.</p></details>
+            <details><summary>Who unfollowed me, and can I unfollow them back?</summary><p>Open <b>Unfollowed you</b> in the sidebar. GrowX notices people who followed you and later stopped during the checks it already makes - the full follower scan, the follow-back checks and the look-up right before a follow-back or an unfollow - so finding them costs no extra requests to X. The page shows how many were found <b>today</b>, the whole list with the user ids kept, and which of them you can still unfollow (you follow them, they are not on your Never unfollow list, and GrowX has not already unfollowed them). <b>Nobody here is unfollowed automatically.</b> Tick one, several, or every eligible one at once, and they go to the front of the Unfollow mode queue - still with the re-check right before, your Never unfollow list, your daily unfollow number and your usual delays and breaks.</p></details>
+            <details><summary>What happens when X refuses a follow (or a follow fails)?</summary><p>GrowX protects the account in 4 steps, and you write the time of each step yourself (Autopilot &amp; Safety: section 5 for Follow, B8 for Follow back, U8 for Unfollow). <b>Step 1:</b> the first refusal or failed follow - an <b>18 minute</b> break. <b>Step 2:</b> if X refuses again right after those 18 minutes - a break of 30 to 40 minutes. <b>Step 3:</b> if X refuses again - 3 to 4 hours. <b>Step 4:</b> if X refuses once more - GrowX stops for the rest of the day and starts again by itself the next day (keep "Turn ON by itself every day" on). Steps 1 to 3 have an on/off switch; step 4 is always on because it is what keeps the account safe. The steps count refusals in a row: as soon as a follow works again, the plan starts again from step 1. Follow and Follow back share the steps (X counts their follows together); Unfollow has its own. A break that is running is never skipped, not even if you press Stop and Start.</p></details>
+            <details><summary>How do I set when GrowX turns ON and OFF each day?</summary><p>Each mode has a <b>Daily ON / OFF time</b> card on the Autopilot &amp; Safety page (section 6 for Follow, U4 for Unfollow, B5 for Follow back). Write the time it should turn ON and the time it should turn OFF, and pick the days. With <b>Turn ON by itself every day</b> switched on, GrowX starts by itself at the ON time - no clicking - and goes to sleep at the OFF time. The bar shows the working hours of the day and where "now" is. It also turns off earlier once the day's number is done, and carries on at the next ON time if it isn't.</p></details>
+            <details><summary>Can Unfollow start with the newest accounts I follow?</summary><p>Yes. In <b>U1. How many unfollows</b>, set <b>Who first</b> to <i>Newest following first</i>. The default is <i>Oldest following first</i>. It applies to the whole list, the inactive check and "active followers" too. If you change it while a list is half done, the rest of the list is turned around - nobody is unfollowed twice and nobody is lost. Follow back has the same choice for your followers (B1), and Follow can pick the best match, the newest found or the oldest found person in your queue first (section 1).</p></details>
+            <details><summary>What does "Per hour: Auto" mean?</summary><p>You do not have to write the hourly number any more. With <b>Auto</b> on, GrowX works it out for the mode you use: from your number for the day, your active hours, your delays and your breaks - just above the busiest hour your own delays and breaks can make, so it never cuts into your rhythm (for example 15 follows, then 18 minutes), and never above X's safe maximum. Change the day's number, a delay or a break and the hourly number follows by itself. Switch Auto off if you want to write the number yourself.</p></details>
+            <details><summary>How does Follow back choose who to follow?</summary><p>It reads who follows you and who you follow, and keeps the followers you don't follow yet. It starts with your most recent follower and works towards the oldest. Right before following back, every batch of 100 is checked again: still following you, not already followed, not private, and (if you switch it on in B6) has a verified badge. Just before each follow-back GrowX also counts the follower's posts - an account with fewer than 5 posts, replies and reposts in the last 60 days is treated as inactive and skipped (you can change both numbers in B7). If X doesn't show something, the follower is skipped, never guessed. It finishes your daily number first. If fewer people are waiting than your number, it follows all of them, rests, and looks for new followers again later.</p></details>
+            <details><summary>Can Follow back follow back only verified accounts?</summary><p>Yes. Switch on <b>B6. Verified accounts only</b> on the Autopilot &amp; Safety page. Only followers with a verified badge (blue, gold or grey check) are followed back; everyone else is skipped and looked at again after 3 days. Most followers are not verified, so far fewer than your daily number may qualify, and GrowX looks through your whole follower list to find them. GrowX reads the badge from X right before; if X doesn't show it, the follower is skipped (never guessed) and a warning appears in the Overview's Activity box (Events tab).</p></details>
+            <details><summary>What is Comment mode, and does GrowX post the replies itself?</summary><p>Comment mode is the fourth mode. You give it posts - pasted links, accounts on a <b>watch list</b>, <b>target accounts</b> you also want to follow, and the <b>replies people leave on your own posts</b> - and for each one GrowX reads the post on X, asks your AI model for one reply with your prompt, checks that reply against <b>your</b> rules in GrowX (banned words and every form of them, length, lines, lowercase, no emoji, no hashtags, no links, not a copy of the post, not like your last replies), and only then posts it. You choose what happens at the end, in C1 &rarr; <b>Publishing</b>: <b>GrowX posts it</b> sends the reply through your own signed-in x.com session, waits, and reads the post back before the row is marked Posted - nothing is ever counted on a guess; or <b>I post it myself</b>, where GrowX only writes and keeps the drafts ready for you. Either way it keeps your pace: a random wait between replies, a break every few replies, a per-hour number, a daily goal, its own ON / OFF hours and its own rest day.</p></details>
+            <details><summary>Does Comment mode cost money? How much?</summary><p>GrowX itself is free. The writing is done by <b>your own</b> OpenAI key, which you paste in C4 and which never leaves this browser. The model table shows what 1,000 replies cost with each model, and the Comment page shows what today really cost, worked out from the token counts OpenAI returns - never from an estimate. Set a <b>daily spend cap</b> in C10 and GrowX stops writing for the day when it reaches it, with a notification. gpt-4.1-mini is the sensible default: it follows long rule lists well and a day of replies costs a few cents.</p></details>
+            <details><summary>Can it reply to the same post twice?</summary><p>No. Every post id you have ever replied to is kept forever, and a link in any form - x.com, twitter.com, mobile, /i/web/status/, with ?s=20 or /photo/1 - comes down to the same id. GrowX also reads the post on X right before writing, so a reply you made <b>by hand or on another device</b> counts too. Both checks are always on and cannot be switched off.</p></details>
+            <details><summary>What does Comment mode skip?</summary><p>Posts you already replied to, your own posts, posts older than your limit (7 days by default), posts where the author has limited who may reply, posts that are deleted or not visible to you, posts by an author who already had their reply today, and posts the model itself calls off topic (it answers SKIP and GrowX moves on instead of forcing something). Every skip is logged with its reason on the Comment page.</p></details>
+            <details><summary>Can Comment mode take its turn in the mode sequence?</summary><p>Yes. Comment has its own row in the <b>Mode sequence</b> card and starts switched off there, so nothing changes until you want it to. Switch it on and it takes its turn like the others: it does its <b>Target per turn</b> (C1), then the transition break runs, then the next mode starts. Comment does not use X's follow limit, so it fits anywhere in the order. Leave <b>Don't run with the other modes at the same time</b> on (C3) and Comment waits until Follow, Follow back and Unfollow have had their turn.</p></details>
+            <details><summary>How do the waits in Comment mode work?</summary><p>Three of them, each a random time inside a range you set in C2, because that is what a person actually does: after the post opens there is a pause <b>before writing</b>; the reply is typed; then a pause of a second or two <b>before it is sent</b>. With <b>Like the post before replying</b> on there is a fourth - the gap between the like and the reply. On top of that is the normal wait between replies and the break every few replies. If X ever refuses the direct request, GrowX falls back to the post page and does it the way you would: open the reply box, type, wait, press Reply.</p></details>
+            <details><summary>Can I get run updates on my phone?</summary><p>Yes - Telegram, in C11, for all four modes. Make a bot with @BotFather, paste the token and your chat id, and pick which events you want: started, paused, resumed, finished, X warnings, failures in a row, breaks, drafts ready, a watched account posting, and a daily report at the time you choose. The token stays in this browser and is never written into a backup.</p></details>
+            <details><summary>What happens to my comment history?</summary><p>It only grows. Every day's totals and every post id are kept forever in this browser, and a backup file is written to <b>Downloads/GrowX/</b> once a day. A restore <b>merges</b>: it can raise a total, never lower one. The <b>Comment history</b> page shows the all-time number, the day-by-day table with a running total, and the backup buttons.</p></details>
+            <details><summary>Do I need to keep an X tab open?</summary><p>No. GrowX uses any open x.com tab, or opens a small pinned one by itself. You can keep browsing X normally.</p></details>
+            <details><summary>How many followers can I expect?</summary><p>Typical follow-back rates with good sources are 15-35%. At 300 follows a day and a 25% rate that's ~75 new followers a day, ~2,250 a month. The Analytics planner shows your real numbers. 5,000+ a month needs X Premium (higher limits) or a very well-targeted niche.</p></details>
+            <details><summary>What about X's 5,000 following cap?</summary><p>X lets you follow 5,000 accounts; beyond that the cap grows with your followers. GrowX pauses at the cap and waits. Switch GrowX to <b>Unfollow</b> mode to clear out people who didn't follow back, and GrowX carries on by itself once there is room again.</p></details>
+            <details><summary>Why did GrowX pause or stop?</summary><p>It always tells you on the Overview. Breaks, hourly and daily caps and active hours are normal. A "safety rest" means X showed a warning and GrowX backed off. It stops completely only when X needs you: signed out, a verification check, or two "automated" warnings in two days. If X keeps refusing, GrowX takes the breaks of the 3-step plan and then stops for the rest of the day.</p></details>
+            <details><summary>Is it safe?</summary><p>No tool can promise zero risk - X decides. GrowX is built to look and behave like a careful person: it uses X's own web requests, randomises everything, respects every limit X signals, and never clicks through a challenge. Start with the Safe or Balanced pace, use active hours, and turn on warm-up for new accounts.</p></details>
+            <details><summary>Where is my data?</summary><p>Only in this browser (chrome.storage). GrowX has no servers, no analytics and no tracking. Requests go to x.com and X's own scripts on twimg.com - and, only if you switch Comment mode on and add your own key, to api.openai.com to write a reply and api.telegram.org to send your own updates. Nothing goes to Unique Labs.</p></details>
+            <details><summary>Emergency stop?</summary><p>Press <span class="kbd">Alt</span> + <span class="kbd">Shift</span> + <span class="kbd">S</span> anywhere in Chrome.</p></details>
+          </div>
+          <div class="card safety">
+            <h2>Safety playbook</h2>
+            <ul class="checks">
+              <li>New account? Turn on <b>Warm-up</b> and use the <b>Safe</b> pace for the first week.</li>
+              <li>Keep a <b>Daily ON / OFF time</b> - nobody follows people 24 hours a day.</li>
+              <li>Stay under <b>400 follows a day</b> on a normal account.</li>
+              <li>Post and reply now and then: active accounts get more follow-backs and less scrutiny.</li>
+              <li>Unfollow non-followers <b>slowly</b>, after 7-14 days - never on the same day as heavy following. With automatic switching on, the transition break keeps following and unfollowing apart.</li>
+              <li>Check <b>Unfollowed you</b> now and then, but unfollow people back in small batches, not all at once.</li>
+              <li>If GrowX reports a warning, let it rest. Don't restart it at full speed.</li>
+              <li>In Comment mode, keep <b>one reply per author per day</b> and start at the Safe pace - replies are far more visible to other people than follows, and reports come from people, not from X.</li>
+              <li>Read your first twenty replies before letting Comment mode run on its own. If any of them sound like a bot, that is a prompt problem, not a pace problem.</li>
+            </ul>
+            <div class="support">
+              <b>Need help?</b>
+              <a class="btn btn-primary btn-block" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" data-icon="send" title="Telegram @mahfuzxallum"><span>Mahfuz Allum on Telegram</span></a>
+              <a class="btn btn-block" href="https://t.me/igfrostt" target="_blank" rel="noopener" data-icon="send" title="Telegram @igfrostt"><span>Shahriar Ahmed on Telegram</span></a>
+              <a class="btn btn-ghost btn-block" href="privacy.html" target="_blank" rel="noopener" data-icon="lock"><span>Privacy policy</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DONATE -->
+      <section class="page" data-page="donate">
+        <div class="donate-hero">
+          <div class="dh-orbit" aria-hidden="true">
+            <img src="ui/donate/tok-btc.svg" alt="" style="--i:0">
+            <img src="ui/donate/tok-eth.svg" alt="" style="--i:1">
+            <img src="ui/donate/tok-sol.svg" alt="" style="--i:2">
+            <img src="ui/donate/tok-usdt.svg" alt="" style="--i:3">
+            <img src="ui/donate/tok-bnb.svg" alt="" style="--i:4">
+            <img src="ui/donate/tok-avax.svg" alt="" style="--i:5">
+            <span class="dh-heart" data-icon="heart"></span>
+          </div>
+          <div class="dh-copy">
+            <span class="dh-kicker">Free &amp; unlimited &middot; powered by people like you</span>
+            <h1>Keep GrowX free for everyone</h1>
+            <p>No subscriptions. No paywalls. No "pro" tier holding features hostage. Unlimited auto follow, smart targeting, analytics - all free, because people who grow with it chip in. If GrowX brought you new followers, a small tip keeps it alive.</p>
+            <div class="dh-note"><span data-icon="sparkles"></span><div><b>Even $0.10 means a lot.</b> Seriously. Every donation, however small, tells us this tool is worth the late nights - and keeps it free for the next person.</div></div>
+            <div class="btn-row">
+              <a class="btn btn-primary btn-lg" href="#wallets" id="donateJump" data-icon="heart"><span>Donate now</span></a>
+              <a class="btn btn-lg" href="#helpfree" id="helpJump" data-icon="star"><span>Other ways to help</span></a>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="section-title">Why donate?</h2>
+        <div class="why-grid">
+          <div class="card why lift"><span class="why-ic" data-icon="gift"></span><b>It's 100% free</b><p>Unlimited auto follow, targeting, queue, analytics, history and export. No limits, no sign-up, no paywall. Donations are the only thing that keeps it this way.</p></div>
+          <div class="card why lift"><span class="why-ic" data-icon="rocket"></span><b>X changes constantly</b><p>X rebuilds its website all the time. Every change means hours of investigating, rebuilding and testing so your autopilot never breaks. Your support pays for that time.</p></div>
+          <div class="card why lift"><span class="why-ic" data-icon="lock"></span><b>Private by design</b><p>No tracking, no analytics, no selling your data. Donations - not your data - fund development. That's a promise.</p></div>
+          <div class="card why lift"><span class="why-ic" data-icon="coffee"></span><b>Independent developers</b><p>Built and supported by two people at Unique Labs. Your tip goes straight to the developers who fix bugs and answer your messages.</p></div>
+        </div>
+
+        <h2 class="section-title">How to donate</h2>
+        <div class="how-steps">
+          <div class="how"><i>1</i><div><b>Pick a coin you already have</b><p>Any of the networks below works - use whatever is in your wallet.</p></div></div>
+          <div class="how"><i>2</i><div><b>Scan or copy</b><p>Scan the QR code with your wallet app, or press Copy to grab the address.</p></div></div>
+          <div class="how"><i>3</i><div><b>Send any amount</b><p>$0.10, $1, $5 - truly any amount helps. Message us on Telegram if you'd like a thank-you!</p></div></div>
+        </div>
+
+        <h2 class="section-title" id="wallets">Donation addresses</h2>
+        <div class="wallets">
+          <article class="card wallet lift" data-wallet="evm">
+            <header class="w-head">
+              <div class="w-logos"><img src="ui/donate/tok-eth.svg" alt="ETH"><img src="ui/donate/tok-usdt.svg" alt="USDT"><img src="ui/donate/tok-bnb.svg" alt="BNB"><img src="ui/donate/tok-avax.svg" alt="AVAX"><span class="w-more">+</span></div>
+              <div><b>EVM networks</b><small>ETH, USDT, BNB, AVAX and more</small></div>
+            </header>
+            <div class="w-qr"><img src="ui/donate/qr-evm.svg" alt="QR code for the EVM donation address"></div>
+            <div class="w-chips"><span>Ethereum</span><span>BNB Smart Chain</span><span>Avalanche C-Chain</span><span>+ other EVM chains</span></div>
+            <div class="w-addr"><code class="addr">0x257F291514AaAa1533832cC2C8981Cc14063ED17</code></div>
+            <button class="btn btn-primary btn-block w-copy" data-icon="copy"><span>Copy address</span></button>
+            <p class="w-note">One address for every EVM network. Send ETH, USDT, BNB, AVAX or other EVM tokens.</p>
+          </article>
+          <article class="card wallet lift" data-wallet="sol">
+            <header class="w-head">
+              <div class="w-logos"><img src="ui/donate/tok-sol.svg" alt="SOL"></div>
+              <div><b>Solana</b><small>SOL and Solana tokens</small></div>
+            </header>
+            <div class="w-qr"><img src="ui/donate/qr-sol.svg" alt="QR code for the Solana donation address"></div>
+            <div class="w-chips"><span>Solana network</span></div>
+            <div class="w-addr"><code class="addr">GwwZWYxzms9ebEWQNCAJrPSQdsN6SVPGbpMwCYomWqWa</code></div>
+            <button class="btn btn-primary btn-block w-copy" data-icon="copy"><span>Copy address</span></button>
+            <p class="w-note">Solana network only. Fast and almost free to send - perfect for small tips.</p>
+          </article>
+          <article class="card wallet lift" data-wallet="btc">
+            <header class="w-head">
+              <div class="w-logos"><img src="ui/donate/tok-btc.svg" alt="BTC"></div>
+              <div><b>Bitcoin</b><small>BTC</small></div>
+            </header>
+            <div class="w-qr"><img src="ui/donate/qr-btc.svg" alt="QR code for the Bitcoin donation address"></div>
+            <div class="w-chips"><span>Bitcoin network</span><span>Native SegWit (bc1)</span></div>
+            <div class="w-addr"><code class="addr">bc1qg6clyevlmfekg3rkyhlk5ggeh3g6dnt5sdje4j</code></div>
+            <button class="btn btn-primary btn-block w-copy" data-icon="copy"><span>Copy address</span></button>
+            <p class="w-note">Bitcoin network only.</p>
+          </article>
+        </div>
+        <p class="safety-note"><span data-icon="alert"></span>Always double-check the network before you send. Crypto sent on the wrong network can't be recovered.</p>
+
+        <h2 class="section-title" id="helpfree">Other ways to help - all free</h2>
+        <div class="help-cards">
+          <button class="card help-card lift" id="shareBtn" type="button"><span class="why-ic" data-icon="share"></span><b>Share with a friend</b><p>Copy a short note about GrowX and send it to anyone who wants to grow on X.</p></button>
+          <a class="card help-card lift" href="https://t.me/igfrostt" target="_blank" rel="noopener"><span class="why-ic" data-icon="bug"></span><b>Report a bug</b><p>Spotted something off? Tell us on Telegram and we'll fix it fast.</p></a>
+        </div>
+
+        <div class="card thanks">
+          <span class="thanks-ic" data-icon="heart"></span>
+          <div><b>Thank you - truly.</b><p>Whether you donate, share or just grow with GrowX, you're the reason it exists. - <a class="dev-main" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" title="Telegram @mahfuzxallum">Mahfuz Allum</a> &amp; <a href="https://t.me/igfrostt" target="_blank" rel="noopener" title="Telegram @igfrostt">Shahriar Ahmed</a>, Unique Labs</p></div>
+        </div>
+      </section>
+
+      <footer class="page-foot">
+        <div class="pf-brand"><img src="ui/logo.svg" alt=""><span><b>GrowX</b> is a product of <b>Unique Labs</b>. Developed by <a class="dev-main" href="https://t.me/mahfuzxallum" target="_blank" rel="noopener" title="Telegram @mahfuzxallum">Mahfuz Allum</a> and <a href="https://t.me/igfrostt" target="_blank" rel="noopener" title="Telegram @igfrostt">Shahriar Ahmed</a>.</span></div>
+        <div class="pf-links">
+          <a href="#donate" data-icon="heart"><span>Donate</span></a>
+          <a href="https://t.me/igfrostt" target="_blank" rel="noopener" data-icon="bug"><span>Report a bug</span></a>
+          <a href="privacy.html" target="_blank" rel="noopener" data-icon="lock"><span>Privacy</span></a>
+        </div>
+        <div class="pf-copy">&copy; <span id="year">2026</span> Unique Labs. All rights reserved.</div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Welcome (first install) -->
+  <div class="modal-backdrop" id="welcome" hidden>
+    <div class="modal welcome">
+      <img src="ui/logo.svg" alt="" class="welcome-logo">
+      <h2>Welcome to GrowX</h2>
+      <p>Unlimited auto follow for X. Grow real followers on autopilot - everything happens in your own browser.</p>
+      <ol class="welcome-steps">
+        <li><span><b>Sign in to X</b> in this browser.</span></li>
+        <li><span><b>Add 3-10 source profiles</b> in your niche.</span></li>
+        <li><span><b>Start the autopilot</b> and close this page - it keeps going.</span></li>
+      </ol>
+      <form class="welcome-form" id="wForm">
+        <input class="input" id="wInput" placeholder="@creator1, @creator2 ..." spellcheck="false">
+        <button class="btn btn-primary" type="submit" data-icon="plus"><span>Add</span></button>
+      </form>
+      <div class="btn-row center">
+        <button class="btn btn-primary btn-lg" id="wStart" data-icon="rocket"><span>Start growing</span></button>
+        <button class="btn btn-lg btn-ghost" id="wLater"><span>Explore first</span></button>
+      </div>
+      <p class="hint">Tip: pin GrowX (puzzle icon &rarr; pin) to open it in one click.</p>
+    </div>
+  </div>
+
+  <!-- Confirm -->
+  <div class="modal-backdrop" id="confirm" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+      <div class="modal-icon" id="cfIcon" data-icon="alert"></div>
+      <h2 id="cfTitle">Are you sure?</h2>
+      <p id="cfBody"></p>
+      <div class="btn-row end">
+        <button class="btn" id="cfCancel"><span>Cancel</span></button>
+        <button class="btn btn-primary" id="cfOk"><span>Confirm</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import list -->
+  <div class="modal-backdrop" id="importModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-icon" data-icon="upload"></div>
+      <h2>Import a list to follow</h2>
+      <p>Paste usernames or profile links. They're followed as-is (no scoring), with the same safe pacing, before the rest of the queue if you pin them.</p>
+      <textarea class="textarea" id="impText" rows="6" placeholder="@user1 @user2 https://x.com/user3" spellcheck="false"></textarea>
+      <label class="switch imp-pin"><input type="checkbox" id="impPin" checked><span class="track"></span><span>Follow these first</span></label>
+      <div class="btn-row end">
+        <button class="btn" id="impCancel"><span>Cancel</span></button>
+        <button class="btn btn-primary" id="impOk" data-icon="upload"><span>Add to queue</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared/config.js"></script>
+  <script src="shared/cmt.js"></script>
+  <script src="ui/common.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="dashboard-cmt.js"></script>
+</body>
+</html>
