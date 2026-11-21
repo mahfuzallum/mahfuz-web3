@@ -318,6 +318,7 @@
     renderGo();
     renderHero(s, c);
     renderStats(s, c);
+    renderWeek();
     renderLimits(s, c);
     renderTabs();
     if (ui.tab === "watch") renderWatch();
@@ -454,6 +455,24 @@
     // the same plain tally of the links you pasted, right above the queue
     const lp = $("#cmtLinkProg");
     if (lp) setHtml("cmtLinkProg", lp, `<div class="card lp-card">${linkProgress(c)}</div>`);
+  }
+
+  // v3.2 the last seven days at a glance (from the day totals Comment mode keeps).
+  function renderWeek() {
+    const box = $("#cmtWeek");
+    if (!box || !cs) return;
+    const days = cs.days || {};
+    const out = [];
+    let posted = 0;
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i);
+      const k = GX.cmtDayKey(d.getTime()), v = days[k] || {};
+      posted += v.posted || 0;
+      out.push({ x: d.toLocaleDateString([], { weekday: "short" }), a: v.posted || 0, b: v.skipped || 0 });
+    }
+    setHtml("cmtWeek", box, posted || out.some((g) => g.b) ? U.barChart(out, { h: 180, aLabel: "replies posted", bLabel: "skipped" }) : '<div class="chart-empty">Your replies show up here day by day.</div>');
+    const sum = $("#cmtWeekSum");
+    if (sum) sum.textContent = `${fmt(posted)} replies this week`;
   }
 
   function renderLimits(s, c) {

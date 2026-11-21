@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GrowX - Unlimited Auto Follow for X/Twitter",
   "short_name": "GrowX",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Free X (Twitter) growth autopilot: auto follow, follow back, unfollow and AI reply comments - safe limits, full control.",
   "minimum_chrome_version": "116",
   "permissions": [

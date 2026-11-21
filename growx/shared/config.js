@@ -204,7 +204,7 @@
     unfInactiveMinPosts: 1,    // (v3.2: no longer used - a single post in the period keeps the account)
     // v3.2 - big and good accounts are never unfollowed, by any step (old list, no follow-back, inactive, unfollowed you).
     unfProtectBig: true,       // the big-account guard (leave it on)
-    unfProtectScore: 70,       // Quality score (0-100) at or above this = never unfollowed
+    unfProtectScore: 65,       // Quality score (0-100) at or above this = never unfollowed
     unfProtectFollowers: 10000,// this many followers or more = never unfollowed (0 = only the score decides)
     unfNeverMutual: true,      // THE GUARD: nobody who follows you back is ever unfollowed, whatever else is set.
     unfStopWhenEmpty: true,    // when nothing is left that may be unfollowed, stop and say so instead of waiting

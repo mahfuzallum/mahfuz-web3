@@ -2397,10 +2397,11 @@ async function inactiveWork(job, s, u, now) {
   const since = now - s.unfInactiveDays * DAY;
   u.deepTimes = (u.deepTimes || []).filter((x) => x > now - HOUR);
   u.deep = u.deep || []; u.ibatch = u.ibatch || [];
-  if (u.inactUntil && now < u.inactUntil && !((u.mpos || 0) < (u.mutual || []).length)) return { pauseUntil: u.inactUntil, msg: "Inactive check: X isn't showing post lists right now - nobody is unfollowed without a confirmed read." };
+  // Post lists were unavailable a moment ago: the profile lookups go on, the post reads wait (see below).
+  const paused = !!(u.inactUntil && now < u.inactUntil);
   const capFull = u.deepTimes.length >= 120;
   const lookupLeft = (u.mpos || 0) < (u.mutual || []).length;
-  if (lookupLeft && (u.deep.length < 30 || (capFull && u.deep.length < 500))) {
+  if (lookupLeft && (u.deep.length < 30 || ((capFull || paused) && u.deep.length < 500))) {
     const iids = u.mutual.slice(u.mpos, u.mpos + 100);
     const ri = await sendTab(job.tabId, { gx: "uinfo", ids: iids }, 45000);
     if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
@@ -2426,7 +2427,7 @@ async function inactiveWork(job, s, u, now) {
     if (deepAdded) logLine(job, "", "wait", `${deepAdded} follower${deepAdded === 1 ? "" : "s"} to double-check (${active} active and ${big} big kept)`);
     return { did: true };
   }
-  if (u.deep.length && !capFull) {
+  if (u.deep.length && !capFull && !paused) {
     const d = u.deep[0];
     const rp = await sendTab(job.tabId, { gx: "rposts", id: d.i, since }, 45000);
     if (rp && rp.uid && job.ownerId && rp.uid !== job.ownerId) return { wrongAccount: true };
@@ -2465,6 +2466,7 @@ async function inactiveWork(job, s, u, now) {
     if (!u.deep.length && (u.mpos || 0) >= (u.mutual || []).length) u.mutualDoneAt = Date.now();
     return { did: true };
   }
+  if (u.deep.length && paused) return { pauseUntil: u.inactUntil, msg: "Inactive check: X isn't showing post lists right now - nobody is unfollowed without a confirmed read." };
   if (u.deep.length && capFull) return { capUntil: u.deepTimes[0] + HOUR + rand(20000, 90000) };
   return { did: false };
 }

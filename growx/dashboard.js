@@ -975,35 +975,45 @@
   const TAG = (k) => k === "bk" ? '<em class="tg bk" title="Follows you - GrowX followed back">Follows you</em>' : k === "fb" ? '<em class="tg fb" title="Was following you (inactive, or active when you chose to unfollow active followers)">Follower</em>' : '<em class="tg nf" title="Was not following you">Non-follower</em>';
 
   // ---- v3.2 live unfollow stream: done -> now -> next, one after the other ------------------------
-  function unfStreamHtml(compact) {
+  // Nothing in it changes every second, and a row that was already on screen keeps its place without
+  // animating again - only a new arrival slides in, so the list moves one account at a time.
+  const usSeen = { ulStream: new Set(), unfStream: new Set() };
+  function unfStreamHtml(compact, slot) {
     const job = st.job, u = st.unf || {}, s = st.settings;
-    const running = !!job && jobMode(job) === "unfollow" && ACTIVE_JOB.has(job.status);
-    const done = ((job && jobMode(job) === "unfollow" && job.log) || []).filter((l) => l.r === "ok" && l.h && (l.tg === "nf" || l.tg === "fb")).slice(0, compact ? 3 : 5).reverse();
+    const mine = !!job && jobMode(job) === "unfollow";
+    const running = mine && ACTIVE_JOB.has(job.status);
+    const done = ((mine && job.log) || []).filter((l) => l.r === "ok" && l.h && (l.tg === "nf" || l.tg === "fb")).slice(0, compact ? 3 : 5).reverse();
     const cur = running && job.current && job.current.h ? job.current : null;
     const next = (u.next || []).filter((x) => !cur || x.i !== cur.i).slice(0, compact ? 3 : 6);
     if (!done.length && !cur && !next.length) {
+      usSeen[slot] = new Set();
       return compact ? "" : `<div class="us-empty">${U.icon("userX")}<span>${s.runMode === "unfollow" ? "The live list appears here as soon as Unfollow mode picks its next accounts." : "Switch to Unfollow mode - each unfollow shows up here live, one after the other."}</span></div>`;
     }
+    const seen = usSeen[slot] || new Set(), now = new Set();
     const meta = (x) => [x.qs != null ? `score ${x.qs}` : "", x.fc != null ? `${U.compact(x.fc)} followers` : ""].filter(Boolean).join(" · ");
-    const row = (x, kind, why, when) => `<div class="us-row ${kind}" data-k="${U.esc(x.i || x.h)}">
+    const row = (x, kind, why, when, key) => {
+      now.add(key);
+      return `<div class="us-row ${kind}${seen.has(key) ? " stay" : ""}">
         <span class="us-dot"></span>${U.avatarHtml(x.a, x.n || x.h, compact ? 24 : 30)}
         <div class="us-who"><b>@${U.esc(x.h || x.i)}</b><small>${U.esc(why || "")}${meta(x) ? " · " + U.esc(meta(x)) : ""}</small></div>
         <em class="us-tag">${kind === "done" ? "Unfollowed" : kind === "now" ? "Now" : "Next"}</em>${when ? `<time>${when}</time>` : ""}</div>`;
-    const tl = (job && job.nextAt && job.nextAt > Date.now()) ? U.countdown(job.nextAt - Date.now()) : "";
-    return `${compact ? "" : `<div class="us-head"><b>Live unfollow list</b><small>${running ? (cur ? "working now" : tl ? "next unfollow in " + tl : "running") : "not running"} · big / good and active accounts are never unfollowed</small></div>`}
+    };
+    const html = `${compact ? "" : `<div class="us-head"><b>Live unfollow list</b><small>${running ? (cur ? "working now" : "running") : job && mine && job.status === "paused" ? "paused" : "not running"} · big / good and active accounts are never unfollowed</small></div>`}
       <div class="us-list">
-        ${done.map((l) => row({ h: l.h, a: "", n: l.h }, "done", l.w || l.m, U.clock(l.t))).join("")}
-        ${cur ? row(cur, "now", cur.why || (cur.tg === "fb" ? "inactive follower" : "doesn't follow you back"), "") : ""}
-        ${next.map((x, i) => row(x, "next", x.why, i === 0 && tl && !cur ? tl : "")).join("")}
+        ${done.map((l) => row({ h: l.h, a: "", n: l.h }, "done", l.w || l.m, U.clock(l.t), "d" + l.t + l.h)).join("")}
+        ${cur ? row(cur, "now", cur.why || (cur.tg === "fb" ? "inactive follower" : "doesn't follow you back"), "", "n" + (cur.i || cur.h)) : ""}
+        ${next.map((x) => row(x, "next", x.why, "", "x" + x.i)).join("")}
       </div>`;
+    usSeen[slot] = now;
+    return html;
   }
   function renderUnfStreams() {
     const a = $("#ulStream");
-    if (a) setHtml("ulStream", a, unfStreamHtml(false));
+    if (a && route === "unfollowed") setHtml("ulStream", a, unfStreamHtml(false, "ulStream"));
     const b = $("#unfStream");
-    if (b) {
+    if (b && route === "overview") {
       const on = modeOf(st.settings) === "unfollow";
-      const html = on ? unfStreamHtml(true) : "";
+      const html = on ? unfStreamHtml(true, "unfStream") : "";
       b.hidden = !html;
       setHtml("unfStream", b, html);
     }
@@ -1070,7 +1080,7 @@
     ui.ulShow = ui.ulShow || 100;
     const lastPost = (x) => x.gone ? `<span class="cell-muted">account gone</span>` : x.lt ? `<span class="${now - x.lt <= s.unfInactiveDays * 86400000 ? "lp-ok" : "lp-old"}">${U.ago(x.lt)}</span>` : `<span class="cell-muted">-</span>`;
     const scoreCell = (x) => x.qs != null || x.fc != null
-      ? `<span class="qs ${x.qs >= s.unfProtectScore ? "hi" : x.qs >= 45 ? "mid" : "lo"}" title="Quality score">${x.qs != null ? x.qs : "?"}</span><small>${x.fc != null ? U.compact(x.fc) + " followers" : ""}${x.v ? " · ✓" : ""}</small>`
+      ? `<span class="qs ${x.qs >= s.unfProtectScore ? "hi" : x.qs >= 45 ? "mid" : "lo"}" title="Quality score">${x.qs != null ? x.qs : "?"}</span><small>${x.fc != null ? U.compact(x.fc) + " followers" : ""}</small>${x.v ? `<em class="vchk" title="Verified">${U.icon("check")}</em>` : ""}`
       : `<small class="cell-muted">press Refresh numbers</small>`;
     const status = (x) => x.rf ? `<em class="tg bk">Followed again</em>` : x.rq ? `<em class="tg wait">In Follow queue</em>` : "";
     const html = rows.length ? rows.slice(0, ui.ulShow).map((x, i) => `<div class="trow ul-cols ul-cols-x${ulMistake(x, s, now) ? " ul-mistake" : ""}" style="animation-delay:${Math.min(i, 14) * 18}ms">
@@ -2342,7 +2352,7 @@
     setHtml("unfStatus", el, html);
     const ih = $("#inactHint");
     if (ih) ih.textContent = s.unfInactive
-      ? `Unfollows only accounts with no post at all in the last ${s.unfInactiveDays} days (about ${Math.round(s.unfInactiveDays / 30 * 10) / 10} months) - checked by reading their posts, twice. ${ia.keptActive ? U.fmt(ia.keptActive) + " active and " : ""}${ia.keptBig ? U.fmt(ia.keptBig) + " big accounts kept so far. " : ""}Up to 120 profiles are read per hour, so a big list takes a few days. Keep list (U7) and U4c always win.${GX.unfProtect(s) ? " (Switch U4b off to let this run.)" : ""}`
+      ? `Unfollows only accounts with no post at all in the last ${s.unfInactiveDays} days (about ${Math.round(s.unfInactiveDays / 30 * 10) / 10} months) - checked by reading their posts, twice. ${(() => { const k = [ia.keptActive ? U.fmt(ia.keptActive) + " active" : "", ia.keptBig ? U.fmt(ia.keptBig) + " big / good" : ""].filter(Boolean); return k.length ? k.join(" and ") + " followers kept so far. " : ""; })()}Up to 120 profiles are read per hour, so a big list takes a few days. Keep list (U7) and U4c always win.${GX.unfProtect(s) ? " (Switch U4b off to let this run.)" : ""}`
       : "Off.";
     const bh = $("#bigHint");
     if (bh) {

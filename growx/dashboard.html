@@ -522,8 +522,8 @@
             <div class="card fs guard-card" data-for="unfollow">
               <div class="fs-head"><span data-icon="shield"></span><div><b>U4c. Never unfollow big or good accounts</b><small>Every unfollow is checked against the account's profile, read in that moment: if it has <strong>this many followers</strong>, or its <strong>Quality score</strong> (followers, followers per following, verified, account age, posts and recent activity - 0 to 100) is <strong>this high</strong>, it is never unfollowed - by any step, even if it doesn't follow you back. If the profile can't be read, the account is left alone. <strong>Leave it on.</strong></small></div><label class="switch fs-switch"><input type="checkbox" data-k="unfProtectBig"><span class="track"></span></label></div>
               <div class="fgrid">
-                <div class="field"><label>Keep if Quality score is at least</label><div class="with-unit"><input class="input num" type="number" min="0" max="100" data-k="unfProtectScore"><span>/ 100</span></div><span class="hint">70 = big, established, active accounts. Lower = keeps more.</span></div>
-                <div class="field"><label>Keep if followers are at least</label><div class="with-unit"><input class="input num" type="number" min="0" data-k="unfProtectFollowers"><span>followers</span></div><span class="hint">0 = only the score decides.</span></div>
+                <div class="field"><label>Keep if Quality score is at least</label><div class="with-unit"><input class="input num" type="number" min="0" max="100" data-k="unfProtectScore"><span>/ 100</span></div><span class="hint">65 = established, active accounts (a big KOL is usually 75+). Lower = keeps more.</span></div>
+                <div class="field"><label>Keep if followers are at least</label><div class="with-unit wide-unit"><input class="input num" type="number" min="0" data-k="unfProtectFollowers"><span>followers</span></div><span class="hint">0 = only the score decides.</span></div>
               </div>
               <p class="hint" id="bigHint"></p>
             </div>
@@ -987,6 +987,7 @@
 
         <div class="cmt-hero" id="cmtHero"></div>
         <div class="cmt-stats" id="cmtStats"></div>
+        <div class="card chart-card cmt-week"><div class="card-head"><div><b>Last 7 days</b><small>replies posted and posts skipped, per day</small></div><span class="chip" id="cmtWeekSum"></span></div><div class="chart-box" id="cmtWeek"></div></div>
         <div id="cmtLinkProg"></div>
 
         <div class="cmt-tabs" id="cmtTabs">
@@ -1063,7 +1064,7 @@
           <div class="more" id="cmtMore" hidden><button class="btn" id="cmtMoreBtn"><span>Show more</span></button></div>
         </div>
 
-        <div class="card">
+        <div class="card cmt-flow-card">
           <div class="card-head"><div><b>What happens after you press Start</b><small>steps 3 to 9 repeat for every link until the queue is empty</small></div></div>
           <div class="flow">
             <div class="fs-step"><span class="n">1</span><b>Paste links</b><small>Any format. Add more any time, even while it runs.</small></div>
