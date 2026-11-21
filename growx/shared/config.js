@@ -200,18 +200,31 @@
     unfBreakJitter: 10,        // +/- % randomness on the break
     unfHourlyLimit: 60,        // at most this many unfollows in any 60 minutes
     unfInactive: false,        // also unfollow INACTIVE accounts - even if they follow you back
-    unfInactiveDays: 60,       // look at the last N days...
-    unfInactiveMinPosts: 5,    // ...fewer posts than this (posts, replies and reposts) = inactive
+    unfInactiveDays: 60,       // inactive = NO post at all (posts, replies, reposts) in the last N days. One post = active = kept.
+    unfInactiveMinPosts: 1,    // (v3.2: no longer used - a single post in the period keeps the account)
+    // v3.2 - big and good accounts are never unfollowed, by any step (old list, no follow-back, inactive, unfollowed you).
+    unfProtectBig: true,       // the big-account guard (leave it on)
+    unfProtectScore: 70,       // Quality score (0-100) at or above this = never unfollowed
+    unfProtectFollowers: 10000,// this many followers or more = never unfollowed (0 = only the score decides)
     unfNeverMutual: true,      // THE GUARD: nobody who follows you back is ever unfollowed, whatever else is set.
     unfStopWhenEmpty: true,    // when nothing is left that may be unfollowed, stop and say so instead of waiting
-    unfActiveToo: false,       // when fewer non-followers are due than today's number: also unfollow ACTIVE followers (people who follow you back) to fill it. OFF = they are never unfollowed
+    unfActiveToo: false,       // (v3.2: removed - active followers are never unfollowed) when fewer non-followers are due than today's number: also unfollow ACTIVE followers (people who follow you back) to fill it. OFF = they are never unfollowed
     goalMonthly: 5000,
 
     // harvesting
+    followQuality: false,      // v3.2 "Big score first": the queue puts the highest Quality score first (OFF = the follow-back ratio order below)
+    bkQuality: false,          // v3.2 the same for Follow back: the biggest / best followers are followed back first
+    learnScore: true,          // v3.2 the follow-back score also learns from YOUR results (which kinds of accounts really followed back)
+    skipCapped: true,          // v3.2 skip people stuck at X's following limit - they cannot follow anyone back
+    srcAutoPause: true,        // v3.2 pause a source whose follow-back rate stays poor
+    srcPauseBelow: 35,         // ... below this % ...
+    srcPauseAfter: 60,         // ... after this many follows from it
+    preCheck: true,            // v3.2 just before a follow, read the account once more (still active? still able to follow back?)
+    likeBeforeFollow: false,   // v3.2 like one recent post first (one more notification = more follow-backs; uses X's like limit)
     followOrder: "score",      // Follow mode, who first from the queue: "score" = best match first, "new" = newest found first, "old" = oldest found first
     poolTarget: 250,           // candidates kept ready in the queue
-    poolMaxAgeHours: 72,       // drop candidates older than this (keep it "latest")
-    freshEveryHours: 3,        // re-read each source's newest followers this often
+    poolMaxAgeHours: 48,       // drop candidates older than this (keep it "latest")
+    freshEveryHours: 2,        // re-read each source's newest followers this often
     harvestPages: 3,           // pages of newest followers per fresh pass
 
     // targeting
@@ -250,6 +263,7 @@
     unfollowDaily: [10, 1000], unfollowAfterDays: [1, 60], unfTurn: [0, 100000], bkTurn: [0, 100000],
     unfMinDelay: [5, 900], unfMaxDelay: [5, 1800], unfLongPause: [0, 50], unfRestEvery: [0, 500], unfRestEveryMin: [0, 500], unfRestMinutes: [1, 240], unfRestMinutesMax: [1, 240],
     unfBreakJitter: [0, 50], unfHourlyLimit: [1, 300], unfInactiveDays: [7, 365], unfInactiveMinPosts: [1, 20],
+    unfProtectScore: [0, 100], unfProtectFollowers: [0, 100000000], srcPauseBelow: [0, 100], srcPauseAfter: [10, 2000],
     bkDaily: [10, 1000], bkMinDelay: [5, 900], bkMaxDelay: [5, 1800], bkLongPause: [0, 50], bkRestEvery: [0, 500], bkRestEveryMin: [0, 500], bkRestMinutes: [1, 240], bkRestMinutesMax: [1, 240],
     // Automatic mode switching: the transition break between two modes (minutes)
     transMin: [1, 720], transMax: [1, 720],
@@ -264,7 +278,8 @@
   };
 
   const BOOLS = ["autoStart", "failBreak", "warmup", "activeHours", "autoSlowdown", "verifyFollows", "keepAwake", "autoResume", "notifications",
-    "requireAvatar", "requireBio", "skipProtected", "skipVerified", "onlyVerified", "skipFollowsMe", "unfollowOn", "unfInactive", "unfActiveToo", "unfNeverMutual", "unfStopWhenEmpty",
+    "requireAvatar", "requireBio", "skipProtected", "skipVerified", "onlyVerified", "skipFollowsMe", "unfollowOn", "unfInactive", "unfActiveToo", "unfNeverMutual", "unfStopWhenEmpty", "unfProtectBig",
+    "followQuality", "bkQuality", "learnScore", "skipCapped", "srcAutoPause", "preCheck", "likeBeforeFollow",
     "bkVerifiedOnly", "bkSkipInactive", "bkSkipProtected", "bkSkipNoPhoto",
     "pauseResume", "hourlyAuto", "refuse0On", "refuse1On", "refuse2On", "bkRefuse0On", "bkRefuse1On", "bkRefuse2On", "unfRefuse0On", "unfRefuse1On", "unfRefuse2On",
     "autoSwitch", "switchLoop"];
@@ -285,8 +300,10 @@
   //   all-old / all-new  EVERYONE you follow: the non-followers first, then the people who do follow
   //                      you back as well (the same thing switch U6 does, without having to find it)
   // Whatever is picked, the Never unfollow list (U7) and every daily number, delay and break still apply.
-  const UNF_ORDERS = ["old", "new", "lost", "all-old", "all-new"];
-  const unfNewest = (s) => s && (s.unfOrder === "new" || s.unfOrder === "all-new");
+  // v3.2: "all-old" / "all-new" (unfollow everyone, active followers too) were removed - an active account is never
+  // unfollowed. Saved settings with them are read as "old" / "new".
+  const UNF_ORDERS = ["old", "new", "lost"];
+  const unfNewest = (s) => s && s.unfOrder === "new";
   const unfLostFirst = (s) => !!s && s.unfOrder === "lost";
   // Does Unfollow carry on into the people who follow you back? Either the Who-first choice says so,
   // or U6 is switched on by hand.
@@ -294,7 +311,8 @@
   // switches that would reach a mutual - "unfollow everyone" and "unfollow
   // inactive accounts even if they follow you back" - simply cannot.
   const unfProtect = (s) => !s || s.unfNeverMutual !== false;
-  const unfEveryone = (s) => !!s && !unfProtect(s) && (s.unfOrder === "all-old" || s.unfOrder === "all-new" || !!s.unfActiveToo);
+  // v3.2: always false. Filling the day with ACTIVE followers was removed - when nothing inactive is left, Unfollow stops.
+  const unfEveryone = () => false;
   const unfInactiveOn = (s) => !!s && !!s.unfInactive && !unfProtect(s);
   // One place that answers "does this person follow me back?" from whatever is
   // known about them, erring towards yes: an unfollow we are not sure about
@@ -376,10 +394,13 @@
     if (out.bkMaxDelay < out.bkMinDelay) [out.bkMinDelay, out.bkMaxDelay] = [out.bkMaxDelay, out.bkMinDelay];
     if (!["safe", "balanced", "fast", "custom"].includes(out.bkPace)) out.bkPace = "custom";
     if (!["new", "old"].includes(out.bkOrder)) out.bkOrder = "new";
+    if (out.unfOrder === "all-new") out.unfOrder = "new";
     if (!UNF_ORDERS.includes(out.unfOrder)) out.unfOrder = "old";
+    out.unfActiveToo = false;
     if (!["score", "new", "old"].includes(out.followOrder)) out.followOrder = "score";
     out.autoStartTime = hhmm(out.autoStartTime, DEFAULT_SETTINGS.autoStartTime);
     for (const b of BOOLS) out[b] = !!out[b];
+    out.unfActiveToo = false;
     for (const t of TEXTS) out[t] = String(out[t] || "").slice(0, 3000);
     out.activeStart = hhmm(out.activeStart, DEFAULT_SETTINGS.activeStart);
     out.activeEnd = hhmm(out.activeEnd, DEFAULT_SETTINGS.activeEnd);
@@ -441,10 +462,56 @@
   const DAY = 86400000;
   const hayOf = (u) => (String(u.n || "") + " " + String(u.h || "") + " " + String(u.b || "")).toLowerCase();
 
+  // ---- v3.2 Quality score: how big and how good an account is (0-100) -----------------------
+  // Not the follow-back score. It answers "is this a big, real, active account?" and is used to
+  //   * never unfollow big / good accounts (Unfollow, every step), and
+  //   * put the best accounts first when "Big score first" is on (Follow, Follow back).
+  // Followers (log scale, up to 45) + followers per following (up to 20) + verified (10) + account age (8)
+  // + posts (8) + recent activity (9). Unknown numbers add nothing.
+  function qualityScore(u) {
+    if (!u) return 0;
+    const now = Date.now();
+    let q = 0;
+    const fc = typeof u.fc === "number" ? u.fc : null, fr = typeof u.fr === "number" ? u.fr : null;
+    if (fc !== null && fc > 100) q += Math.min(45, 11.25 * Math.log10(fc / 100));
+    if (fc !== null && fr !== null) {
+      const r = fc / Math.max(1, fr);
+      q += r >= 10 ? 20 : r >= 3 ? 14 : r >= 1.5 ? 8 : r >= 1 ? 4 : 0;
+    }
+    if (u.v) q += 10;
+    if (u.ca) { const age = (now - u.ca) / DAY; q += age > 730 ? 8 : age > 365 ? 5 : age < 90 ? -10 : 0; }
+    if (typeof u.sc === "number") q += u.sc >= 5000 ? 8 : u.sc >= 1000 ? 5 : u.sc >= 200 ? 2 : 0;
+    if (u.lt) { const d = (now - u.lt) / DAY; q += d <= 7 ? 9 : d <= 30 ? 5 : d > 90 ? -10 : 0; }
+    if (u.d) q -= 10;
+    return Math.max(0, Math.min(100, Math.round(q)));
+  }
+  // Why this account must never be unfollowed (big / good), or null. With no numbers at all it is NOT
+  // judged here - the caller treats "can't tell" as "keep".
+  function bigReason(u, s) {
+    if (!u || !s || s.unfProtectBig === false) return null;
+    if (s.unfProtectFollowers > 0 && typeof u.fc === "number" && u.fc >= s.unfProtectFollowers) return `big account - ${Number(u.fc).toLocaleString()} followers`;
+    const q = qualityScore(u);
+    if (q >= s.unfProtectScore) return `good account - Quality score ${q}`;
+    return null;
+  }
+  // X lets an account follow 5,000 people; past that only about 10% more than its own followers. Someone at that
+  // line cannot follow anyone back, however likely they look.
+  function atFollowCap(u) {
+    if (!u || typeof u.fr !== "number" || typeof u.fc !== "number") return false;
+    const cap = Math.max(5000, Math.floor(u.fc * 1.1));
+    return u.fr >= cap - 30;
+  }
+  function nearFollowCap(u) {
+    if (!u || typeof u.fr !== "number" || typeof u.fc !== "number") return false;
+    const cap = Math.max(5000, Math.floor(u.fc * 1.1));
+    return u.fr >= cap * 0.96;
+  }
+
   // Hard filters. Returns why a candidate is NOT followed, or null if eligible.
   function rejectReason(u, s, now) {
     now = now || Date.now();
     if (u.fw === true) return "already following";
+    if (s.skipCapped !== false && atFollowCap(u)) return "at X's following limit";
     if (s.skipFollowsMe && u.fy === true) return "already follows you";
     if (s.skipProtected && u.p) return "private account";
     if (s.skipVerified && u.v) return "verified";
@@ -512,10 +579,16 @@
       if (age < 30) sc -= 10; else if (age < 90) sc -= 4; else if (age > 365) sc += 2;
     }
     if (u.d) sc -= 14;
+    if (nearFollowCap(u)) sc -= 25;                          // close to X's following limit: may not be able to follow back
     if (!String(u.b || "").trim()) sc -= 4;
     if (u.p) sc -= 18;
     if (u.v) sc += 2;
-    if (typeof u.pos === "number" && u.pos < 60) sc += 4;   // one of the source's newest followers
+    // One of the source's newest followers: someone who just followed an account is in "follow mode" right now.
+    if (typeof u.pos === "number") sc += u.pos < 20 ? 10 : u.pos < 60 ? 6 : u.pos < 150 ? 2 : 0;
+    // v3.2 learning: what YOUR own results say about accounts like this one (see learnAdjust in the engine).
+    if (s && s.learnScore !== false && typeof u.lrn === "number") sc += u.lrn;
+    // v3.2 the source's real follow-back rate (set by the engine once a source has enough follows).
+    if (typeof u.srb === "number") sc += u.srb;
     return Math.max(1, Math.min(99, Math.round(sc)));
   }
 
@@ -847,6 +920,7 @@
     K, LINKS, PRESETS, PRESET_INFO, DEFAULT_SETTINGS, LIMITS, DEFAULT_BOOST, DEFAULT_EXCLUDE,
     normalizeSettings, cleanHandle, parseKeywords, kwHit, rejectReason, scoreUser, scoreBand,
     inWindow, nextWindowStart, autoStartMinutes, nextAutoStart, effectiveLimits, followingCap, modeSettings, UNF_PRESETS, UNF_PRESET_INFO,
+    qualityScore, bigReason, atFollowCap, nearFollowCap,
     BK_PRESETS, BK_PRESET_INFO, MODES, DEFAULT_SEQ, UNF_ORDERS, unfNewest, unfLostFirst, unfEveryone, unfProtect, unfInactiveOn, followsYouBack, autoHourly, hourlyCap, refusePlan, AUTO_HOURLY_MAX, HOURS,
     breakRange, breakMs, extraBreakMs, transitionMs, modeSeq, modeOrder, nextMode, modeTarget, modeTurnTarget, cycling, paceInfo,
     modeDays, restDayList, withRestDays, weekIndex, SEQ_ALL

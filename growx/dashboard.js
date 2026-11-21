@@ -12,6 +12,7 @@
   const modeOf = (s) => (s && GX.MODES.includes(s.runMode) ? s.runMode : "follow");
   const jobMode = (job) => (job ? (GX.MODES.includes(job.runMode) ? job.runMode : GX.MODES.includes(job.mode) ? job.mode : "follow") : "follow");
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const ACTIVE_JOB = new Set(["running", "resting", "sleeping"]);
   // The hourly number a mode really runs with: Auto = worked out from the day's number, the hours, the delays and the breaks;
   // otherwise the number you typed. (follow-back: its own count; the shared one is st.limits.hourly / hourOf(s, "follow").)
   const hourOf = (s, mode) => GX.hourlyCap(s, GX.MODES.includes(mode) ? mode : "follow").cap;
@@ -176,9 +177,9 @@
     const nameOf = (i) => book.get(String(i)) || { h: "", n: "" };
 
     if (what === "unfollowed") return { name: "unfollowed",
-      header: ["handle", "link", "name", "user_id", "was_following_you", "mutual", "why", "unfollowed_at"],
+      header: ["handle", "link", "name", "user_id", "was_following_you", "mutual", "why", "unfollowed_at", "quality_score", "followers", "last_post", "followed_again_at"],
       rows: unlog.map((x) => { const h = x.h || nameOf(x.i).h;
-        return [h, xLink(h, x.i), x.n || nameOf(x.i).n, x.i || "", x.k === "fb" ? "yes" : "no", x.k === "fb" ? "mutual" : "not mutual", x.w || "", iso(x.t)]; }) };
+        return [h, xLink(h, x.i), x.n || nameOf(x.i).n, x.i || "", x.k === "fb" ? "yes" : "no", x.k === "fb" ? "mutual" : "not mutual", x.w || "", iso(x.t), x.qs == null ? "" : x.qs, x.fc == null ? "" : x.fc, x.lt ? iso(x.lt) : "", x.rf ? iso(x.rf) : ""]; }) };
 
     if (what === "following") return { name: "following",
       header: ["handle", "link", "name", "user_id", "source", "score", "followed_at", "followed_you_back", "followed_back_at", "unfollowed_you_at", "state"],
@@ -261,13 +262,13 @@
     const el = $("#unfGuardLive");
     if (el) {
       el.textContent = on
-        ? `On. Nobody who follows you back will be unfollowed${s.unfActiveToo || s.unfInactive ? " - U5 and U6 below cannot override this while it is on." : "."}${s.unfStopWhenEmpty ? " When nothing is left that may be unfollowed, GrowX stops and tells you." : ""}`
-        : "Off. U1, U5 and U6 decide on their own, and people who follow you back can be unfollowed.";
+        ? `On. Nobody who follows you back will be unfollowed${s.unfInactive ? " - U5 below cannot override this while it is on." : "."}${s.unfStopWhenEmpty ? " When nothing is left that may be unfollowed, GrowX stops and tells you." : ""}`
+        : `Off. ${s.unfInactive ? "U5 may unfollow followers who have not posted in " + s.unfInactiveDays + " days. Active followers and big / good accounts are still never unfollowed." : "Active followers are still never unfollowed."}${s.unfStopWhenEmpty ? " When nothing is left, GrowX stops and tells you." : ""}`;
       el.classList.toggle("warn", !on);
     }
     U.$$('[data-for="unfollow"] .fs-head').forEach((h) => {
       const k = h.querySelector("[data-k]");
-      const over = on && k && ["unfInactive", "unfActiveToo"].includes(k.dataset.k);
+      const over = on && k && ["unfInactive"].includes(k.dataset.k);
       h.closest(".card")?.classList.toggle("overruled", !!over);
     });
     const gc = U.$(".guard-card");
@@ -973,34 +974,152 @@
 
   const TAG = (k) => k === "bk" ? '<em class="tg bk" title="Follows you - GrowX followed back">Follows you</em>' : k === "fb" ? '<em class="tg fb" title="Was following you (inactive, or active when you chose to unfollow active followers)">Follower</em>' : '<em class="tg nf" title="Was not following you">Non-follower</em>';
 
-  async function renderUnfollowed() {
+  // ---- v3.2 live unfollow stream: done -> now -> next, one after the other ------------------------
+  function unfStreamHtml(compact) {
+    const job = st.job, u = st.unf || {}, s = st.settings;
+    const running = !!job && jobMode(job) === "unfollow" && ACTIVE_JOB.has(job.status);
+    const done = ((job && jobMode(job) === "unfollow" && job.log) || []).filter((l) => l.r === "ok" && l.h && (l.tg === "nf" || l.tg === "fb")).slice(0, compact ? 3 : 5).reverse();
+    const cur = running && job.current && job.current.h ? job.current : null;
+    const next = (u.next || []).filter((x) => !cur || x.i !== cur.i).slice(0, compact ? 3 : 6);
+    if (!done.length && !cur && !next.length) {
+      return compact ? "" : `<div class="us-empty">${U.icon("userX")}<span>${s.runMode === "unfollow" ? "The live list appears here as soon as Unfollow mode picks its next accounts." : "Switch to Unfollow mode - each unfollow shows up here live, one after the other."}</span></div>`;
+    }
+    const meta = (x) => [x.qs != null ? `score ${x.qs}` : "", x.fc != null ? `${U.compact(x.fc)} followers` : ""].filter(Boolean).join(" · ");
+    const row = (x, kind, why, when) => `<div class="us-row ${kind}" data-k="${U.esc(x.i || x.h)}">
+        <span class="us-dot"></span>${U.avatarHtml(x.a, x.n || x.h, compact ? 24 : 30)}
+        <div class="us-who"><b>@${U.esc(x.h || x.i)}</b><small>${U.esc(why || "")}${meta(x) ? " · " + U.esc(meta(x)) : ""}</small></div>
+        <em class="us-tag">${kind === "done" ? "Unfollowed" : kind === "now" ? "Now" : "Next"}</em>${when ? `<time>${when}</time>` : ""}</div>`;
+    const tl = (job && job.nextAt && job.nextAt > Date.now()) ? U.countdown(job.nextAt - Date.now()) : "";
+    return `${compact ? "" : `<div class="us-head"><b>Live unfollow list</b><small>${running ? (cur ? "working now" : tl ? "next unfollow in " + tl : "running") : "not running"} · big / good and active accounts are never unfollowed</small></div>`}
+      <div class="us-list">
+        ${done.map((l) => row({ h: l.h, a: "", n: l.h }, "done", l.w || l.m, U.clock(l.t))).join("")}
+        ${cur ? row(cur, "now", cur.why || (cur.tg === "fb" ? "inactive follower" : "doesn't follow you back"), "") : ""}
+        ${next.map((x, i) => row(x, "next", x.why, i === 0 && tl && !cur ? tl : "")).join("")}
+      </div>`;
+  }
+  function renderUnfStreams() {
+    const a = $("#ulStream");
+    if (a) setHtml("ulStream", a, unfStreamHtml(false));
+    const b = $("#unfStream");
+    if (b) {
+      const on = modeOf(st.settings) === "unfollow";
+      const html = on ? unfStreamHtml(true) : "";
+      b.hidden = !html;
+      setHtml("unfStream", b, html);
+    }
+  }
+
+  // ---- Unfollowed page: filters, pick, follow again ------------------------------------------------
+  const ufWhy = (x) => x.ia || x.k === "fb" ? "ia" : /no follow-back/.test(x.w || "") ? "7d" : /unfollowed you/.test(x.w || "") ? "lost" : "old";
+  function ulFilters() {
+    const num = (id) => { const v = Number($(id).value); return Number.isFinite(v) && v > 0 ? v : 0; };
+    return { score: num("#ufScore"), followers: num("#ufFollowers"), active: Number($("#ufActive").value) || 0, why: $("#ufWhy").value,
+      when: Number($("#ufWhen").value) || 0, state: $("#ufState").value, verified: $("#ufVerified").checked };
+  }
+  function ulMatch(x, F, now) {
+    if (F.score && !(x.qs != null && x.qs >= F.score)) return false;
+    if (F.followers && !(x.fc != null && x.fc >= F.followers)) return false;
+    if (F.active > 0 && !(x.lt && now - x.lt <= F.active * 86400000)) return false;
+    if (F.active < 0 && !(x.lt && now - x.lt > -F.active * 86400000)) return false;
+    if (F.why && ufWhy(x) !== F.why) return false;
+    if (F.when === 1) { const d = new Date(); d.setHours(0, 0, 0, 0); if (x.t < d.getTime()) return false; }
+    else if (F.when && now - x.t > F.when * 86400000) return false;
+    if (F.state === "rf" && !x.rf) return false;
+    if (F.state === "q" && !(x.rq && !x.rf)) return false;
+    if (F.state === "not" && (x.rf || x.rq)) return false;
+    if (F.verified && !x.v) return false;
+    return true;
+  }
+  // "Mistakes": accounts the v3.2 rules would have kept - big / good (score or followers), or active when they were
+  // unfollowed as inactive. Uses the numbers read by "Refresh numbers".
+  function ulMistake(x, s, now) {
+    if (x.rf || x.rq || x.gone) return false;
+    if (s.unfProtectFollowers && x.fc != null && x.fc >= s.unfProtectFollowers) return true;
+    if (x.qs != null && x.qs >= s.unfProtectScore) return true;
+    if (ufWhy(x) === "ia" && x.lt && x.lt >= x.t - s.unfInactiveDays * 86400000) return true;   // they had posted inside the period
+    return false;
+  }
+  async function ulAll() {
     let all = await U.get(K.unlog, []);
     all = Array.isArray(all) ? all : [];
     const acc = st.account;
     if (acc && acc.id) all = all.filter((x) => !x.o || x.o === acc.id);
+    return all;
+  }
+  async function renderUnfollowed() {
+    renderUnfStreams();
+    const all = await ulAll();
+    const now = Date.now(), s = st.settings;
     const today0 = new Date(); today0.setHours(0, 0, 0, 0);
     const nf0 = all.filter((x) => x.k !== "fb").length, fb0 = all.length - nf0;
-    // The list below keeps the latest 5,000 unfollows; the totals come from the engine's counters so they never stop at 5,000.
     const tot = Math.max(all.length, unfAll(st.unf)), fb = Math.min(tot, Math.max(fb0, unfFol(st.unf))), nf = tot - fb;
     const td = all.filter((x) => x.t >= today0.getTime());
+    const rfN = all.filter((x) => x.rf).length, rqN = all.filter((x) => x.rq && !x.rf).length;
+    const noData = all.filter((x) => x.qs == null || !x.ra).length;
     setHtml("ulStats", $("#ulStats"), `
       <div class="ul-stat"><small>Unfollowed</small><b class="num">${U.fmt(tot)}</b><span>in total${tot > all.length ? ` · the list shows the latest ${U.fmt(all.length)}` : ""}</span></div>
       <div class="ul-stat nf"><small>Non-followers</small><b class="num">${U.fmt(nf)}</b><span>didn't follow you</span></div>
-      <div class="ul-stat fb"><small>Followers</small><b class="num">${U.fmt(fb)}</b><span>followed you (inactive, or active if you chose)</span></div>
-      <div class="ul-stat"><small>Today</small><b class="num">${U.fmt(td.length)}</b><span>${U.fmt(td.filter((x) => x.k !== "fb").length)} non-followers · ${U.fmt(td.filter((x) => x.k === "fb").length)} followers</span></div>`);
+      <div class="ul-stat fb"><small>Followers</small><b class="num">${U.fmt(fb)}</b><span>followed you, inactive</span></div>
+      <div class="ul-stat"><small>Followed again</small><b class="num">${U.fmt(rfN)}</b><span>${rqN ? U.fmt(rqN) + " waiting in the Follow queue" : `today: ${U.fmt(td.length)} unfollowed`}</span></div>`);
     const q = ($("#ulSearch").value || "").trim().toLowerCase();
     const f = ui.ulFilter || "all";
-    const rows = all.filter((x) => (f === "all" || (f === "fb" ? x.k === "fb" : x.k !== "fb")) && (!q || `${x.h} ${x.n}`.toLowerCase().includes(q)));
+    const F = ulFilters();
+    const rows = all.filter((x) => (f === "all" || (f === "fb" ? x.k === "fb" : x.k !== "fb")) && (!q || `${x.h} ${x.n}`.toLowerCase().includes(q)) && ulMatch(x, F, now));
+    ui.ulRows = rows;
+    ui.ulSel = ui.ulSel || new Set();
     ui.ulShow = ui.ulShow || 100;
-    const html = rows.length ? rows.slice(0, ui.ulShow).map((x, i) => `<div class="trow ul-cols" style="animation-delay:${Math.min(i, 14) * 18}ms">
-        <div class="who">${U.avatarHtml(x.a, x.n || x.h, 32)}<div><b>${U.esc(x.n || "@" + x.h)}</b><a href="https://x.com/${encodeURIComponent(x.h)}" target="_blank" rel="noopener">@${U.esc(x.h)}</a></div></div>
-        <span>${TAG(x.k)}</span>
-        <span class="cell-muted">${x.rk ? `<b class="rk">#${U.fmt(x.rk)}</b> of ${U.fmt(x.rkOf)} · ` : ""}${U.esc(x.w || "")}</span>
+    const lastPost = (x) => x.gone ? `<span class="cell-muted">account gone</span>` : x.lt ? `<span class="${now - x.lt <= s.unfInactiveDays * 86400000 ? "lp-ok" : "lp-old"}">${U.ago(x.lt)}</span>` : `<span class="cell-muted">-</span>`;
+    const scoreCell = (x) => x.qs != null || x.fc != null
+      ? `<span class="qs ${x.qs >= s.unfProtectScore ? "hi" : x.qs >= 45 ? "mid" : "lo"}" title="Quality score">${x.qs != null ? x.qs : "?"}</span><small>${x.fc != null ? U.compact(x.fc) + " followers" : ""}${x.v ? " · ✓" : ""}</small>`
+      : `<small class="cell-muted">press Refresh numbers</small>`;
+    const status = (x) => x.rf ? `<em class="tg bk">Followed again</em>` : x.rq ? `<em class="tg wait">In Follow queue</em>` : "";
+    const html = rows.length ? rows.slice(0, ui.ulShow).map((x, i) => `<div class="trow ul-cols ul-cols-x${ulMistake(x, s, now) ? " ul-mistake" : ""}" style="animation-delay:${Math.min(i, 14) * 18}ms">
+        <label class="cb">${x.rf || x.rq || x.gone ? `<input type="checkbox" disabled>` : `<input type="checkbox" data-ul="${U.esc(x.i)}"${ui.ulSel.has(String(x.i)) ? " checked" : ""}>`}<i></i></label>
+        <div class="who">${U.avatarHtml(x.a, x.n || x.h, 32)}<div><b>${U.esc(x.n || "@" + x.h)} ${TAG(x.k)}</b><a href="https://x.com/${encodeURIComponent(x.h)}" target="_blank" rel="noopener">@${U.esc(x.h)}</a></div></div>
+        <span class="ul-score">${scoreCell(x)}</span>
+        <span>${lastPost(x)}</span>
+        <span class="cell-muted">${x.rk ? `<b class="rk">#${U.fmt(x.rk)}</b> of ${U.fmt(x.rkOf)} · ` : ""}${U.esc(x.w || "")} ${status(x)}</span>
         <span class="cell-muted" title="${new Date(x.t).toLocaleString()}">${U.dateTime(x.t)}</span>
       </div>`).join("")
       : `<div class="empty">${U.icon("userX")}<b>${all.length ? "No matches" : "Nobody unfollowed yet"}</b><span>${all.length ? "Try another filter." : "Switch to Unfollow mode - every unfollow shows up here, marked follower or non-follower."}</span></div>`;
     setHtml("ul", $("#ulRows"), html);
     $("#ulMore").hidden = rows.length <= ui.ulShow;
+    const pickableIds = new Set(rows.filter((x) => !x.rf && !x.rq && !x.gone).map((x) => String(x.i)));
+    for (const id of [...ui.ulSel]) if (!pickableIds.has(id)) ui.ulSel.delete(id);
+    renderUlBulk(noData);
+  }
+  function renderUlBulk(noData) {
+    const n = ui.ulSel ? ui.ulSel.size : 0;
+    const pickable = (ui.ulRows || []).filter((x) => !x.rf && !x.rq && !x.gone).length;
+    $("#ulBulk").hidden = !pickable && !n;
+    $("#ulSelN").textContent = `${U.fmt(n)} picked`;
+    $("#ulBulkNote").textContent = n ? "they go to the front of the Follow queue - followed at your normal pace" : `${U.fmt(pickable)} shown can be followed again${noData ? ` · ${U.fmt(noData)} without fresh numbers` : ""}`;
+    $("#ulRefollow").disabled = !n;
+    const allBox = $("#ulAll");
+    if (allBox && document.activeElement !== allBox) allBox.checked = !!pickable && n >= pickable;
+  }
+  async function ulRefollow(ids, label) {
+    if (!ids.length) return;
+    const ok = await confirmBox({ title: `Follow ${U.fmt(ids.length)} account${ids.length === 1 ? "" : "s"} again?`,
+      body: `${label ? label + " " : ""}They go to the very front of the Follow queue. Follow mode follows them first, with your normal delays, breaks and daily number - nothing outside your limits. Once followed again, they are never unfollowed again.`,
+      ok: "Follow again", icon: "userPlus" });
+    if (!ok) return;
+    const r = await U.cmd("refollow", { ids });
+    if (!r || !r.ok) { U.toast((r && r.error) || "That didn't work.", "bad"); return; }
+    ui.ulSel = new Set();
+    U.toast(`${U.fmt(r.added)} queued to follow again${r.already ? ` · ${U.fmt(r.already)} you already follow` : ""}${r.followRunning ? "" : " - they are followed when Follow mode runs"}`, "good", 6000);
+    renderUnfollowed();
+  }
+  async function ulRefreshNumbers(opts) {
+    const btn = $("#ulRefresh");
+    btn.disabled = true; $("#ulFix").disabled = true;
+    U.toast("Reading the profiles from X - 100 at a time, this can take a minute or two…", "info", 5000);
+    let r;
+    try { r = await U.cmd("unlogRefresh", opts || {}); } finally { btn.disabled = false; $("#ulFix").disabled = false; }
+    if (!r || !r.ok) { U.toast((r && r.error) || "Couldn't read the profiles.", "bad"); return false; }
+    if (r.done) U.toast(`Numbers refreshed for ${U.fmt(r.done)} accounts${r.left ? ` (${U.fmt(r.left)} more next time)` : ""}.`, "good");
+    await renderUnfollowed();
+    return true;
   }
   function wireUnfollowed() {
     $("#ulSearch").addEventListener("input", debounce(() => { ui.ulShow = 100; renderUnfollowed(); }, 150));
@@ -1011,11 +1130,47 @@
       $$("#ulFilter button").forEach((x) => x.classList.toggle("on", x === b));
       renderUnfollowed();
     });
+    $("#ulFilters").addEventListener("input", debounce(() => { ui.ulShow = 100; renderUnfollowed(); }, 200));
+    $("#ufClear").addEventListener("click", () => {
+      ["#ufScore", "#ufFollowers"].forEach((id) => { $(id).value = ""; });
+      ["#ufActive", "#ufWhen"].forEach((id) => { $(id).value = "0"; });
+      ["#ufWhy", "#ufState"].forEach((id) => { $(id).value = ""; });
+      $("#ufVerified").checked = false;
+      renderUnfollowed();
+    });
+    $("#ulRows").addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-ul]");
+      if (!cb) return;
+      ui.ulSel = ui.ulSel || new Set();
+      if (cb.checked) ui.ulSel.add(cb.dataset.ul); else ui.ulSel.delete(cb.dataset.ul);
+      renderUlBulk();
+    });
+    const pickAll = (on) => {
+      ui.ulSel = new Set(on ? (ui.ulRows || []).filter((x) => !x.rf && !x.rq && !x.gone).map((x) => String(x.i)) : []);
+      $$("#ulRows [data-ul]").forEach((c) => { c.checked = ui.ulSel.has(c.dataset.ul); });
+      renderUlBulk();
+    };
+    $("#ulAll").addEventListener("change", (e) => pickAll(e.target.checked));
+    $("#ulSelAll").addEventListener("click", () => pickAll(true));
+    $("#ulSelNone").addEventListener("click", () => pickAll(false));
+    $("#ulRefollow").addEventListener("click", () => ulRefollow([...(ui.ulSel || [])]));
+    $("#ulRefresh").addEventListener("click", () => ulRefreshNumbers());
+    $("#ulFix").addEventListener("click", async () => {
+      // 1. fresh numbers for everyone who has none yet, 2. pick everyone the new rules would have kept, 3. ask once.
+      const all = await ulAll();
+      if (all.some((x) => x.qs == null || !x.ra)) { if (!await ulRefreshNumbers()) return; }
+      const s = st.settings, now = Date.now();
+      const bad = (await ulAll()).filter((x) => ulMistake(x, s, now));
+      if (!bad.length) { U.toast("No mistakes found - nobody big, good or active was unfollowed (by the numbers X shows now).", "good", 6000); return; }
+      const big = bad.filter((x) => (x.qs != null && x.qs >= s.unfProtectScore) || (s.unfProtectFollowers && x.fc >= s.unfProtectFollowers)).length;
+      await ulRefollow(bad.map((x) => String(x.i)), `Found ${U.fmt(bad.length)}: ${U.fmt(big)} big / good account${big === 1 ? "" : "s"} and ${U.fmt(bad.length - big)} that were still active.`);
+    });
     $("#ulMoreBtn").addEventListener("click", () => { ui.ulShow += 200; renderUnfollowed(); });
   }
 
   function renderLive() {
     try { renderLiveSeq(); } catch (_) {}
+    try { renderUnfStreams(); } catch (_) {}
     const job = st.job, v = U.jobView(job, st.task), s = st.settings, L = st.limits;
     const mode = modeOf(s), nu = modeNumbers();
     const unfMode = mode === "unfollow", bkMode = mode === "followback";
@@ -2174,12 +2329,17 @@
     }
     if (s.runMode === "unfollow") html += `<button class="btn btn-ghost btn-xs" type="button" id="unfReset">Read my list again</button>`;
     setHtml("unfStatus", el, html);
-    const ah = $("#actHint");
-    if (ah) ah.textContent = GX.unfEveryone(s)
-      ? `On - when no non-follower is due, GrowX unfollows followers too (${ac.ready && ac.total ? U.fmt(Math.max(0, ac.total - ac.pos + (ac.queued || 0))) + " on the list" : "list is read first"}), ${s.unfOrder === "new" ? "the ones you followed most recently first" : "the ones you followed longest ago first"}. Skipped: your Never unfollow list (U7) and anyone you followed in the last ${s.unfollowAfterDays} days.`
-      : "Off - people who follow you back are never unfollowed, even when today's number isn't reached.";
     const ih = $("#inactHint");
-    if (ih) ih.textContent = s.unfInactive ? `Unfollows anyone with fewer than ${s.unfInactiveMinPosts} posts in the last ${s.unfInactiveDays} days (about ${Math.round(s.unfInactiveDays / 30 * 10) / 10} months), and accounts with fewer than ${s.unfInactiveMinPosts} posts ever. Up to 120 profiles are read per hour, so a big list takes a few days. Keep list (U7) always wins.` : "Off.";
+    if (ih) ih.textContent = s.unfInactive
+      ? `Unfollows only accounts with no post at all in the last ${s.unfInactiveDays} days (about ${Math.round(s.unfInactiveDays / 30 * 10) / 10} months) - checked by reading their posts, twice. ${ia.keptActive ? U.fmt(ia.keptActive) + " active and " : ""}${ia.keptBig ? U.fmt(ia.keptBig) + " big accounts kept so far. " : ""}Up to 120 profiles are read per hour, so a big list takes a few days. Keep list (U7) and U4c always win.${GX.unfProtect(s) ? " (Switch U4b off to let this run.)" : ""}`
+      : "Off.";
+    const bh = $("#bigHint");
+    if (bh) {
+      bh.className = "hint" + (s.unfProtectBig ? "" : " warn");
+      bh.textContent = s.unfProtectBig
+        ? `On - kept: Quality score ${s.unfProtectScore}+${s.unfProtectFollowers ? ` or ${U.fmt(s.unfProtectFollowers)}+ followers` : ""}.${u.keptBig ? ` ${U.fmt(u.keptBig)} big / good accounts kept so far.` : ""}`
+        : "Off - big accounts can be unfollowed like any other. Not recommended.";
+    }
   }
 
   function unfSafetyItems(s, perHour) {
@@ -2194,7 +2354,9 @@
     else add(0, `Break of ${s.unfRestMinutes} min after every ${s.unfRestEvery} unfollows.`);
     const ph = Math.round(perHour);
     add(ph <= 50 ? 0 : ph <= 80 ? 1 : 2, `About ${ph} unfollows an hour while working.`);
-    if (s.unfInactive) add(1, `Inactive accounts (< ${s.unfInactiveMinPosts} posts in ${s.unfInactiveDays} days) are unfollowed even if they follow you - some may unfollow you back.`);
+    if (s.unfInactive) add(1, `Accounts with no post in ${s.unfInactiveDays} days are unfollowed even if they follow you - some may unfollow you back. Active accounts never are.`);
+    if (s.unfProtectBig) add(0, `Big / good accounts (Quality score ${s.unfProtectScore}+${s.unfProtectFollowers ? `, or ${U.fmt(s.unfProtectFollowers)}+ followers` : ""}) are never unfollowed.`);
+    else add(2, "The big-account guard (U4c) is off - big accounts can be unfollowed.");
     if (GX.unfEveryone(s)) add(1, `The people who follow you back are unfollowed too, once no non-follower is due (${GX.unfNewest(s) ? "newest" : "oldest"} follow first) - they stay your followers, but some may unfollow you in return.`);
     if (!s.unfInactive && !GX.unfEveryone(s)) add(0, "Anyone who follows you is checked again right before and never unfollowed.");
     ladderSafety(s, "unfollow", add);
@@ -2537,8 +2699,8 @@
     renderLadders(s);
     const uoh = $("#unfOrderHint");
     if (uoh) {
-      const every = s.unfOrder === "all-old" || s.unfOrder === "all-new";
-      const newest = s.unfOrder === "new" || s.unfOrder === "all-new";
+      const every = false;
+      const newest = s.unfOrder === "new";
       uoh.textContent = every
         ? `Clears your WHOLE following list, ${newest ? "the accounts you followed most recently" : "the accounts you followed longest ago"} first: the people who don't follow you back, then the people who do as well (they stay your followers - you just stop following them, and some may unfollow you in return). Your Never unfollow list (U7) is always respected, and it runs at your daily number, so a long list takes several days.`
         : s.unfOrder === "lost"

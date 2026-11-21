@@ -700,7 +700,8 @@ async function prunePool(s, now) {
     const k = String(c.h || "").toLowerCase();
     // Already followed - by id, or by name for a row that was added by name and
     // so has no id of its own. Plus the same name twice, and the usual rules.
-    if ((c.i && idx.has(c.i)) || (k && byHandle.has(k)) || (k && seen.has(k)) || bl.has(k)
+    const refollowOk = c.rf && c.i && idx.has(c.i) && idx.get(c.i).nf;      // v3.2 "Follow again": the old record says unfollowed
+    if ((c.i && idx.has(c.i) && !refollowOk) || (k && byHandle.has(k)) || (k && seen.has(k)) || bl.has(k)
         || (!c.manual && !c.pin && now - (c.at || 0) > maxAge)) { pool.splice(i, 1); continue; }
     if (k) seen.add(k);
   }
@@ -1701,10 +1702,10 @@ async function exportRows(what) {
     const log = (await load(K.unlog, [])) || [];
     return {
       name: "unfollowed",
-      header: ["handle", "link", "name", "user_id", "was_following_you", "mutual", "why", "unfollowed_at"],
+      header: ["handle", "link", "name", "user_id", "was_following_you", "mutual", "why", "unfollowed_at", "quality_score", "followers", "last_post", "followed_again_at"],
       rows: log.map((x) => {
         const h = x.h || nameOf(x.i).h;
-        return [h, xLink(h, x.i), x.n || nameOf(x.i).n, x.i || "", x.k === "fb" ? "yes" : "no", x.k === "fb" ? "mutual" : "not mutual", x.w || "", iso(x.t)];
+        return [h, xLink(h, x.i), x.n || nameOf(x.i).n, x.i || "", x.k === "fb" ? "yes" : "no", x.k === "fb" ? "mutual" : "not mutual", x.w || "", iso(x.t), x.qs == null ? "" : x.qs, x.fc == null ? "" : x.fc, x.lt ? iso(x.lt) : "", x.rf ? iso(x.rf) : ""];
       })
     };
   }
@@ -1990,27 +1991,50 @@ function tgtKeepSync(list) {
   tgtKeep = new Set((list || []).map((t) => String(t && t.h || "").toLowerCase()).filter(Boolean));
 }
 
-// THE LAST WORD BEFORE AN UNFOLLOW.
-// Two parts, in this order: what GrowX already knows (a queue built under older
-// settings, or someone who followed you back while they waited in it), and then
-// a fresh question to X about this one account, asked now. If X does not give a
-// clear answer the account is skipped - an unfollow is never sent on a guess.
-// Returns {} to go ahead, or { skip, why, retry?, theyFollowYou? }.
+// THE LAST WORD BEFORE AN UNFOLLOW (v3.2: always asked, whatever the switches say).
+// In this order:
+//   1. what GrowX already knows (a queue built under older settings, or someone who followed you back while waiting);
+//   2. a fresh question to X: do they follow you? (an ACTIVE follower is never unfollowed - only an inactive find may be);
+//   3. the profile, read now: a big or good account (Quality score / followers) is never unfollowed;
+//   4. for an inactive find: their posts, read now. One post in the period = active = kept.
+// If X does not give a clear answer the account is skipped - an unfollow is never sent on a guess.
+// Returns { info } to go ahead, or { skip, why, retry?, theyFollowYou?, big? }.
 async function unfVerify(job, s, t) {
-  if (!GX.unfProtect(s)) return {};
+  const inactOk = !!t.ia && GX.unfInactiveOn(s);              // an inactive find: allowed even though they follow you
   const fRec = (await getFollowIndex()).get(t.i);
-  if (GX.followsYouBack(t, null, fRec)) return { skip: true, theyFollowYou: true, why: "follows you back - never unfollowed" };
+  if (!inactOk && GX.followsYouBack(t, null, fRec)) return { skip: true, theyFollowYou: true, why: "follows you back - never unfollowed" };
 
   const chk = await sendTab(job.tabId, { gx: "rel", ids: [t.i] }, 45000);
   if (chk && chk.uid && job.ownerId && chk.uid !== job.ownerId) return { wrongAccount: true };
   if (isRate(chk)) return { rate: chk };
   const fresh = chk && chk.ok ? (chk.map || {})[t.i] : null;
   if (!fresh) return { skip: true, retry: true, why: "could not check whether they follow you - left alone" };
-  if (fresh.fy === true) return { skip: true, theyFollowYou: true, why: "follows you back (checked just now) - never unfollowed" };
+  if (fresh.fy === true && !inactOk) return { skip: true, theyFollowYou: true, why: "follows you back (checked just now) - never unfollowed" };
   if (fresh.gone) return { skip: true, why: "the account is gone" };
   if (fresh.fw === false && !fresh.pending) return { skip: true, why: "you do not follow them any more" };
-  return {};
+
+  const ri = await sendTab(job.tabId, { gx: "uinfo", ids: [t.i] }, 45000);
+  if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
+  if (isRate(ri)) return { rate: ri };
+  if (!ri || !ri.ok) return { skip: true, retry: true, why: "could not read the profile - left alone" };
+  const info = (ri.map || {})[t.i];
+  if (!info) return { skip: true, why: "the account is gone" };
+  const big = GX.bigReason(info, s);
+  if (big) return { skip: true, big: true, info, why: `${big} - never unfollowed` };
+
+  if (t.ia) {
+    const now = Date.now(), since = now - s.unfInactiveDays * DAY;
+    if (info.lt && info.lt >= since) return { skip: true, active: true, info, why: `active - posted ${agoDays(now, info.lt)} - never unfollowed` };
+    const rp = await sendTab(job.tabId, { gx: "rposts", id: t.i, since }, 45000);
+    if (rp && rp.uid && job.ownerId && rp.uid !== job.ownerId) return { wrongAccount: true };
+    if (isRate(rp)) return { rate: rp };
+    if (!rp || !rp.ok) return { skip: true, why: "could not read their posts - left alone" };
+    if (rp.seen > 0 && rp.newest && rp.newest >= since) return { skip: true, active: true, info, why: `active - posted ${agoDays(now, rp.newest)} - never unfollowed` };
+    if (!rp.seen && info.sc !== 0) return { skip: true, why: "their posts could not be read - left alone" };
+  }
+  return { info };
 }
+const agoDays = (now, t) => { const d = Math.floor((now - t) / DAY); return d <= 0 ? "today" : d === 1 ? "1 day ago" : `${d} days ago`; };
 
 function keepSet(s) {
   const out = new Set(String(s.unfollowKeep || "").split(/[\s,]+/).map((h) => GX.cleanHandle(h)).filter(Boolean).map((h) => h.toLowerCase()));
@@ -2292,11 +2316,18 @@ function unfReorder(u, s) {
 function actPending(u) { return (u.apos || 0) < (u.mutual || []).length; }
 // GrowX follows that didn't follow back within the days you set: the ids to look at next, oldest first.
 const dueFollowFilter = (job, now, cut) => (f) => f.i && !f.fb && !f.fy0 && !f.nf && !f.uf && !f.uk && f.t <= cut && !(f.uq && now - f.uq < DAY) && (!f.o || f.o === job.ownerId);
-// One unit of inactive work: a lookup of 100 accounts, or counting one account's recent posts.
+// One unit of inactive work: a lookup of 100 accounts, or reading one account's recent posts.
+// v3.2 - the rule is exactly: INACTIVE = no post at all (posts, replies, reposts) in the last unfInactiveDays days,
+// and that has to be SEEN, not guessed:
+//   * a profile whose latest post is inside the period is active and kept straight away;
+//   * everyone else gets their posts read; inactive only when the read worked and the newest post is older;
+//   * a read that shows nothing (protected, X hiding it, an error) = unknown = kept;
+//   * a big or good account (Quality score / followers, see GX.bigReason) is never even looked at.
 async function inactiveWork(job, s, u, now) {
   const since = now - s.unfInactiveDays * DAY;
   u.deepTimes = (u.deepTimes || []).filter((x) => x > now - HOUR);
   u.deep = u.deep || []; u.ibatch = u.ibatch || [];
+  if (u.inactUntil && now < u.inactUntil && !((u.mpos || 0) < (u.mutual || []).length)) return { pauseUntil: u.inactUntil, msg: "Inactive check: X isn't showing post lists right now - nobody is unfollowed without a confirmed read." };
   const capFull = u.deepTimes.length >= 120;
   const lookupLeft = (u.mpos || 0) < (u.mutual || []).length;
   if (lookupLeft && (u.deep.length < 30 || (capFull && u.deep.length < 500))) {
@@ -2306,21 +2337,23 @@ async function inactiveWork(job, s, u, now) {
     if (!ri || !ri.ok) return { fail: ri || { kind: "transient", message: "no answer" } };
     const keep = keepSet(s);
     const queued = new Set([].concat(u.ibatch || [], u.deep || [], u.batch || []).map((x) => x.i));
-    let found = 0, deepAdded = 0;
+    let active = 0, big = 0, deepAdded = 0;
     for (const id of iids) {
       const m = (ri.map || {})[id];
       if (!m || m.fw === false) continue;                                      // gone, or not followed any more
       if (m.h && keep.has(String(m.h).toLowerCase())) continue;
       if (queued.has(id)) continue;                                            // already waiting: never queued twice
       queued.add(id);
-      if (m.sc != null && m.sc < s.unfInactiveMinPosts) { u.ibatch.push({ i: id, h: m.h, n: m.n, a: m.a, ia: 1, why: `only ${m.sc} post${m.sc === 1 ? "" : "s"} ever` }); found++; }
-      else if (m.lt && m.lt < since) { u.ibatch.push({ i: id, h: m.h, n: m.n, a: m.a, ia: 1, why: `last post ${Math.round((now - m.lt) / DAY)} days ago` }); found++; }
-      else { u.deep.push({ i: id, h: m.h, n: m.n, a: m.a, lt: m.lt || 0 }); deepAdded++; }  // posted recently: count the posts
+      if (GX.bigReason(m, s)) { big++; continue; }                             // big / good account: never
+      if (m.lt && m.lt >= since) { active++; continue; }                       // posted inside the period: active
+      u.deep.push({ i: id, h: m.h, n: m.n, a: m.a, lt: m.lt || 0, sc: m.sc, fc: m.fc, fr: m.fr, v: m.v, ca: m.ca }); deepAdded++;
     }
     u.mpos += iids.length;
     u.inactChecked = (u.inactChecked || 0) + (iids.length - deepAdded);
     u.inactLooked = (u.inactLooked || 0) + iids.length;
-    if (found) logLine(job, "", "wait", `${found} inactive follower${found === 1 ? "" : "s"} found`);
+    u.inactKeptBig = (u.inactKeptBig || 0) + big;
+    u.inactKeptActive = (u.inactKeptActive || 0) + active;
+    if (deepAdded) logLine(job, "", "wait", `${deepAdded} follower${deepAdded === 1 ? "" : "s"} to double-check (${active} active and ${big} big kept)`);
     return { did: true };
   }
   if (u.deep.length && !capFull) {
@@ -2328,7 +2361,7 @@ async function inactiveWork(job, s, u, now) {
     const rp = await sendTab(job.tabId, { gx: "rposts", id: d.i, since }, 45000);
     if (rp && rp.uid && job.ownerId && rp.uid !== job.ownerId) return { wrongAccount: true };
     if (rp && !rp.ok && rp.kind === "auth" && rp.uid) {
-      // Signed in (uid present) but this one profile's posts are not readable (protected/blocked): skip just this account.
+      // Signed in (uid present) but this one profile's posts are not readable (protected/blocked): unknown = kept.
       u.deep.shift();
       return { did: true };
     }
@@ -2336,9 +2369,13 @@ async function inactiveWork(job, s, u, now) {
       if (rp && (rp.kind === "endpoint" || rp.kind === "transient")) {
         u.deepOff = (u.deepOff || 0) + 1;
         if (u.deepOff >= 3) {
-          u.deep = []; u.deepOff = 0;
-          await pushEvent("warn", "Inactive check: X didn't show post lists, so only the latest-post date is used for now.");
-        } else u.deep.push(u.deep.shift());
+          // v3.2: no fallback to guessing. The finds wait (they are not lost) and the check tries again in 30 minutes.
+          u.deepOff = 0;
+          u.inactUntil = Date.now() + 30 * MIN;
+          await pushEvent("warn", "Inactive check: X isn't showing post lists right now. Nobody is unfollowed as inactive without a confirmed read - trying again in 30 minutes.");
+          return { pauseUntil: u.inactUntil, msg: "Inactive check: X isn't showing post lists right now - nobody is unfollowed without a confirmed read." };
+        }
+        u.deep.push(u.deep.shift());
         return { did: true };
       }
       if (rp && rp.kind === "gone") { u.deep.shift(); return { did: true }; }
@@ -2348,12 +2385,13 @@ async function inactiveWork(job, s, u, now) {
     u.deep.shift();
     u.deepTimes.push(Date.now());
     u.inactChecked = (u.inactChecked || 0) + 1;
-    // An empty read for an account whose profile showed a recent post is "unknown", never "inactive".
-    const unreadable = !rp.seen && d.lt && d.lt >= since;
-    if (!unreadable && rp.count < s.unfInactiveMinPosts) {
-      u.ibatch.push({ i: d.i, h: d.h, n: d.n, a: d.a, ia: 1, why: `${rp.count} post${rp.count === 1 ? "" : "s"} in ${s.unfInactiveDays} days` });
-
-    }
+    if (rp.seen > 0 && rp.newest && rp.newest < since) {
+      u.ibatch.push({ i: d.i, h: d.h, n: d.n, a: d.a, ia: 1, fc: d.fc, qs: GX.qualityScore(Object.assign({}, d, { lt: rp.newest })), lt: rp.newest,
+        why: `no post in ${s.unfInactiveDays} days - last one ${agoDays(Date.now(), rp.newest)}` });
+      logLine(job, d.h, "wait", `inactive: last post ${agoDays(Date.now(), rp.newest)}`, "fb");
+    } else if (!rp.seen && d.sc === 0) {
+      u.ibatch.push({ i: d.i, h: d.h, n: d.n, a: d.a, ia: 1, fc: d.fc, qs: GX.qualityScore(d), why: "has never posted" });
+    } else u.inactKeptActive = (u.inactKeptActive || 0) + 1;              // posted inside the period, or unknown: kept
     if (!u.deep.length && (u.mpos || 0) >= (u.mutual || []).length) u.mutualDoneAt = Date.now();
     return { did: true };
   }
@@ -2373,6 +2411,7 @@ async function unfollowStep(job, s, now) {
         if (w.fail && ["automation", "auth", "locked", "suspended", "challenge", "captcha"].includes(w.fail.kind)) return unfFail(job, s, Date.now(), w.fail, w.label || "");
         // Other read errors: back off the inactive check for a while instead of retrying every tick.
         if (w.fail) u0.inactUntil = Date.now() + Math.min(Math.max(w.fail.waitMs || 0, 5 * MIN), HOUR);
+        if (w.pauseUntil) u0.inactUntil = w.pauseUntil;
         await save({ [K.unf]: u0 });
         // More time left before the next unfollow: do another read in a few seconds.
         if (w.did && job.nextAt - Date.now() > 9000) return park(job, s, Date.now() + rand(3000, 6000), false);
@@ -2560,6 +2599,10 @@ async function unfollowStep(job, s, now) {
           rest(job, "hourly", w.capUntil, `Inactive check: 120 profiles read this hour - next reads at ${clock(w.capUntil)}.`);
           return park(job, s, job.restUntil, true);
         }
+        if (w.pauseUntil && !(u.ibatch || []).length) {
+          rest(job, "hourly", w.pauseUntil, `${w.msg} Next try at ${clock(w.pauseUntil)}.`);
+          return park(job, s, job.restUntil, true);
+        }
         readOk(job);
         job.nextAt = Date.now() + rand(2500, 6000);
         return park(job, s, job.nextAt, false);
@@ -2584,8 +2627,9 @@ async function unfollowStep(job, s, now) {
           : GX.unfEveryone(s) ? "" : " People who follow you back are never unfollowed (Who first is not set to \"everyone\", and switch U6 is off).";
         // You asked GrowX to stop rather than idle when there is nobody left it
         // is allowed to unfollow. It says so once, then waits for you to Start.
-        if (guarded && s.unfStopWhenEmpty) {
-          const msg = `Unfollow finished: nobody is left that GrowX may unfollow. Everyone still on your list follows you back, and those are never unfollowed. ${today} of ${s.unfollowDaily} done today.`;
+        // v3.2: this works with the guard off too (inactive mode) - once the inactive check has nothing left either.
+        if (s.unfStopWhenEmpty && (guarded || !GX.unfInactiveOn(s) || !inactivePending(u))) {
+          const msg = `Unfollow finished: nobody is left that GrowX may unfollow. Everyone still on your list follows you back${GX.unfInactiveOn(s) ? " and is active" : ""}, or is a big / good account - those are never unfollowed. ${today} of ${s.unfollowDaily} done today.`;
           job.status = "halted";
           job.haltKind = "done";
           job.message = msg;
@@ -2661,7 +2705,33 @@ async function unfollowStep(job, s, now) {
       if (m && m.fy) { if (f) { if (!f.fb) f.fb = Date.now(); if (f.lost) f.lost = 0; touched = true; } continue; }   // follows you: keep
       if (m && m.fw === false && !m.pending) { if (f) { f.nf = 1; touched = true; } continue; } // already not following
       if (m && m.h && keep.has(String(m.h).toLowerCase())) { if (f) { f.uk = 1; touched = true; } continue; }
+      if (f && f.rf) continue;                                                  // v3.2: you followed them again by hand - kept
       go.push({ i: id, h: (m && m.h) || (f && f.h) || "", src: lost ? "lost" : phase2 ? "7d" : "old", rk: lost || phase2 ? 0 : ((u.rank || [])[u.pos + ids.indexOf(id)] || 0) });
+    }
+    // v3.2 big-account guard where the batch is built: one lookup for the whole batch, big / good accounts are dropped
+    // (and kept for good). The same check runs again right before each unfollow.
+    if (go.length && s.unfProtectBig !== false) {
+      const gi = await sendTab(job.tabId, { gx: "uinfo", ids: go.map((x) => x.i) }, 45000);
+      if (gi && gi.uid && job.ownerId && gi.uid !== job.ownerId) { await haltFor(job, "account"); return park(job, s, Infinity, false); }
+      if (gi && gi.ok) {
+        const kept = [];
+        for (let j = go.length - 1; j >= 0; j--) {
+          const info = (gi.map || {})[go[j].i];
+          if (!info) continue;
+          go[j].fc = info.fc; go[j].qs = GX.qualityScore(info); go[j].n = go[j].n || info.n; go[j].a = go[j].a || info.a;
+          const why = GX.bigReason(info, s);
+          if (why) {
+            kept.push(go[j].h || info.h);
+            const fk = idx.get(go[j].i);
+            if (fk) { fk.uk = 1; touched = true; }
+            go.splice(j, 1);
+          }
+        }
+        if (kept.length) {
+          u.keptBig = (u.keptBig || 0) + kept.length;
+          logLine(job, "", "skip", `${kept.length} big / good account${kept.length === 1 ? "" : "s"} kept (${kept.slice(0, 3).map((h) => "@" + h).join(", ")}${kept.length > 3 ? "…" : ""})`);
+        }
+      }
     }
     if (touched) await saveFollows();
     if (lostFound.length) await addLost(job.ownerId, lostFound, "unfollow", now);
@@ -2720,13 +2790,19 @@ async function unfollowStep(job, s, now) {
     } else if (verdict.theyFollowYou) {
       const fk = (await getFollowIndex()).get(t.i);
       if (fk && !fk.fb) { fk.fb = Date.now(); await saveFollows(); }
-    }
+    } else if (verdict.big) {
+      // A big / good account: kept for good, never picked again.
+      const fk = (await getFollowIndex()).get(t.i);
+      if (fk) { fk.uk = 1; await saveFollows(); }
+      u.keptBig = (u.keptBig || 0) + 1;
+    } else if (verdict.active) u.inactKeptActive = (u.inactKeptActive || 0) + 1;
     await save({ [K.unf]: u });
-    logLine(job, t.h, "skip", verdict.why, verdict.theyFollowYou ? "fb" : undefined);
+    logLine(job, t.h, "skip", verdict.why, verdict.theyFollowYou || t.ia ? "fb" : undefined);
     await actLog({ mode: "unfollow", act: "skip", h: t.h, i: t.i, ok: !verdict.retry, why: verdict.why });
     job.nextAt = Date.now() + rand(verdict.retry ? 2000 : 800, verdict.retry ? 5000 : 2000);
     return park(job, s, job.nextAt, false);
   }
+  const vi = verdict.info || {};
   const actFollower = t.src === "act" && t.fy === true;       // an active follower (setting U6), not a non-follower
   const tg = t.ia || actFollower ? "fb" : "nf";
   job.current = { i: t.i, h: t.h, n: t.n || "", a: t.a || "", tg, act: t.src === "act" ? 1 : 0, why: t.why || "", rk: t.rk || 0, rkOf: u.ftotal || 0 };
@@ -2790,7 +2866,10 @@ async function unfollowStep(job, s, now) {
       const sx = await load(K.stats, {});
       await bumpStats({ unfollowedFollowers: (sx.unfollowedFollowers == null ? arr.filter((x) => x && x.k === "fb").length : 0) + 1 });
     }
-    arr.unshift({ i: t.i, h, n: r.n || t.n || "", a: r.a || t.a || "", t: now, k: tg, w: why, o: job.ownerId, rk: t.rk || 0, rkOf: u.ftotal || 0 });
+    // v3.2: the numbers at the time of the unfollow, so the Unfollowed page can filter by score / activity / size and follow again.
+    arr.unshift({ i: t.i, h, n: r.n || t.n || "", a: r.a || t.a || "", t: now, k: tg, w: why, o: job.ownerId, rk: t.rk || 0, rkOf: u.ftotal || 0,
+      fc: vi.fc != null ? vi.fc : null, fr: vi.fr != null ? vi.fr : null, v: vi.v ? 1 : 0, lt: vi.lt || t.lt || null, sc: vi.sc != null ? vi.sc : null, ca: vi.ca || null,
+      qs: GX.qualityScore(Object.keys(vi).length ? vi : t), ia: t.ia ? 1 : 0 });
     if (arr.length > 5000) arr.length = 5000;
     await save({ [K.unlog]: arr });
     await actLog({ mode: "unfollow", act: "unfollow", h, i: t.i, why, extra: { was: tg === "fb" ? "followed you back" : "not following you" } });
@@ -3577,6 +3656,7 @@ async function jobStep(job) {
     const follows = await getFollows();
     const entry = { i: id, h: t.h, n: t.n || "", a: t.a || "", s: t.src || "", t: now, sc: t.score || 0, fc: t.fc, fr: t.fr, fb: 0, o: job.ownerId, k: 0, c: id ? now + FB_SCHEDULE[0] : 0 };
     if (r.pending) entry.p = 1;
+    if (t.rf) { entry.rf = 1; entry.uk = 1; await unlogPatch({ [id || t.i]: { rf: now, rq: 0 } }); }   // followed again: never unfollowed again
     // Already following you before this follow: not a follow-back.
     if (t.fy || r.followedBy || (id && (await getKnown()).has(id))) { entry.fy0 = 1; entry.c = 0; }
     follows.push(entry);
@@ -3589,8 +3669,8 @@ async function jobStep(job) {
     if (acc && typeof acc.following === "number" && !r.pending) { acc.following++; await save({ [K.account]: acc }); }
     await bumpStats({ followed: 1 });
     if (s.verifyFollows && id && !r.pending) { job.verify = job.verify || { ids: [] }; job.verify.ids.push(id); }
-    logLine(job, t.h, "ok", r.pending ? "follow request sent" : "followed");
-    await actLog({ mode: "follow", act: r.pending ? "request" : "follow", h: t.h || "", i: t.i, why: t.s ? "source: " + t.s : "", extra: t.tgt ? { target: t.tgt } : undefined });
+    logLine(job, t.h, "ok", t.rf ? "followed again" : r.pending ? "follow request sent" : "followed");
+    await actLog({ mode: "follow", act: r.pending ? "request" : "follow", h: t.h || "", i: t.i, why: t.rf ? "followed again (Unfollowed page)" : t.s ? "source: " + t.s : "", extra: t.tgt ? { target: t.tgt } : undefined });
     let delay = rand(s.minDelay, s.maxDelay) * L.slow;
     if (Math.random() * 100 < s.longPauseChance) delay *= rand(2, 4.5);
     job.nextAt = now + delay * 1000;
@@ -4292,7 +4372,13 @@ async function uiState() {
       }
       return { stage: u.stage, total: u.total, removed: u.removed, skipped: u.skipped, left, today, hour, due, waiting, startFollowing: u.startFollowing || null, order: u.order || "old",
         all: allU((u.removed || 0) + (u.inactRemoved || 0) + (u.actRemoved || 0) + (u.lostRemoved || 0)), fol: folU(u.inactRemoved || 0), lostRemoved: u.lostRemoved || 0,
-        inact: { total: (u.mutual || []).length, pos: u.mpos || 0, deep: (u.deep || []).length, found: (u.ibatch || []).length, removed: u.inactRemoved || 0, checked: u.inactChecked || 0, doneAt: u.mutualDoneAt || null, ready: !!u.mutualAt },
+        inact: { total: (u.mutual || []).length, pos: u.mpos || 0, deep: (u.deep || []).length, found: (u.ibatch || []).length, removed: u.inactRemoved || 0, checked: u.inactChecked || 0, doneAt: u.mutualDoneAt || null, ready: !!u.mutualAt,
+          keptActive: u.inactKeptActive || 0, keptBig: u.inactKeptBig || 0 },
+        keptBig: (u.keptBig || 0) + (u.inactKeptBig || 0),
+        // v3.2 live feed: who comes next (inactive finds go first, exactly as the engine picks them)
+        next: [].concat(settings.unfInactive && !GX.unfProtect(settings) ? (u.ibatch || []) : [], u.batch || []).slice(0, 8).map((x) => ({
+          i: x.i, h: x.h || "", n: x.n || "", a: x.a || "", ia: x.ia ? 1 : 0, qs: x.qs == null ? null : x.qs, fc: x.fc == null ? null : x.fc,
+          why: x.ia ? (x.why || "inactive") : x.src === "lost" ? "followed you, then unfollowed you" : x.src === "7d" ? `no follow-back in ${settings.unfollowAfterDays} days` : "doesn't follow you back" })),
         act: { total: (u.mutual || []).length, pos: u.apos || 0, queued: (u.batch || []).filter((x) => x.src === "act").length, removed: u.actRemoved || 0, doneAt: u.actDoneAt || null, ready: !!u.mutualAt },
         read: (u.friends || []).length + (u.followers || []).length, doneAt: u.doneAt || null };
     })()
@@ -4367,6 +4453,88 @@ async function emergencyStop() {
 }
 
 // ===========================================================================
+// v3.2 Unfollowed page: follow again, and fresh numbers for the filters
+// ===========================================================================
+// Small changes to the unfollow log by user id, in one read-modify-write (the engine adds to the same list).
+async function unlogPatch(patches) {
+  const ids = Object.keys(patches || {});
+  if (!ids.length) return 0;
+  const arr = await load(K.unlog, []);
+  if (!Array.isArray(arr)) return 0;
+  let n = 0;
+  for (const x of arr) if (x && patches[x.i]) { Object.assign(x, patches[x.i]); n++; }
+  if (n) await save({ [K.unlog]: arr });
+  return n;
+}
+// "Follow again": the accounts go to the very front of the Follow queue (pinned) and Follow mode follows them with
+// all its own pacing, daily number, breaks and the X-refused plan. Nothing is followed outside those limits.
+async function refollowQueue(ids) {
+  ids = [...new Set((ids || []).map(String).filter((x) => /^\d+$/.test(x)))].slice(0, 2000);
+  if (!ids.length) return { ok: false, error: "Nobody picked." };
+  const arr = await load(K.unlog, []);
+  const byId = new Map((Array.isArray(arr) ? arr : []).map((x) => [String(x.i), x]));
+  const pool = await getPool();
+  const inPool = new Set(pool.map((c) => String(c.i || "")));
+  const following = await followingHandles();
+  let added = 0, already = 0, queued = 0;
+  const patch = {};
+  const now = Date.now();
+  for (const id of ids) {
+    const x = byId.get(id);
+    if (!x) continue;
+    if (x.h && following.has(String(x.h).toLowerCase())) { already++; continue; }
+    if (inPool.has(id)) { queued++; continue; }
+    pool.push({ i: id, h: x.h || "", n: x.n || "", a: x.a || "", fc: x.fc, fr: x.fr, sc: x.sc, lt: x.lt, v: !!x.v, score: 99, qs: x.qs, src: "refollow", at: now, manual: true, pin: true, rf: 1 });
+    inPool.add(id);
+    patch[id] = { rq: now };
+    added++;
+  }
+  sortPool(pool);
+  await savePool();
+  await unlogPatch(patch);
+  if (added) await pushEvent("run", `Follow again: ${added} account${added === 1 ? "" : "s"} put at the front of the Follow queue. Follow mode follows them first, at your normal pace and daily number.`);
+  const job = await load(K.job, null);
+  const followRunning = job && ACTIVE.has(job.status) && jobMode(job) === "follow";
+  return { ok: true, added, already, queued, followRunning };
+}
+// Reads the profiles of unfollowed accounts again (100 per request) so the filters can use real, current numbers:
+// followers, following, verified, last post, posts, Quality score, and whether you follow them now.
+let unlogRefreshing = false;
+async function unlogRefresh(msg) {
+  if (unlogRefreshing) return { ok: false, error: "Already reading - wait a moment." };
+  const arr = await load(K.unlog, []);
+  if (!Array.isArray(arr) || !arr.length) return { ok: true, done: 0 };
+  const maxN = Math.min(3000, Number(msg && msg.max) || 1500);
+  const want = (msg && Array.isArray(msg.ids) && msg.ids.length) ? new Set(msg.ids.map(String)) : null;
+  const stale = Date.now() - 12 * HOUR;
+  const ids = arr.filter((x) => x && x.i && (want ? want.has(String(x.i)) : !(x.ra > stale))).slice(0, maxN).map((x) => String(x.i));
+  if (!ids.length) return { ok: true, done: 0, fresh: true };
+  const got = await acquireTab(null, { create: true });
+  if (!got) return { ok: false, error: "Couldn't open x.com." };
+  unlogRefreshing = true;
+  let done = 0, gone = 0;
+  try {
+    for (let i = 0; i < ids.length; i += 100) {
+      const part = ids.slice(i, i + 100);
+      const r = await sendTab(got.tabId, { gx: "uinfo", ids: part }, 45000);
+      if (!r || !r.ok) { if (done) break; return { ok: false, error: (r && r.message) || "X didn't answer. Try again in a few minutes." }; }
+      const now = Date.now(), patch = {};
+      for (const id of part) {
+        const m = (r.map || {})[id];
+        if (!m) { patch[id] = { ra: now, gone: 1 }; gone++; continue; }
+        patch[id] = { ra: now, gone: 0, fc: m.fc, fr: m.fr, v: m.v ? 1 : 0, lt: m.lt || null, sc: m.sc, ca: m.ca || null, qs: GX.qualityScore(m), fwNow: m.fw === true ? 1 : 0, fyNow: m.fy === true ? 1 : 0, n: m.n || undefined, a: m.a || undefined };
+        if (!patch[id].n) delete patch[id].n;
+        if (!patch[id].a) delete patch[id].a;
+      }
+      await unlogPatch(patch);
+      done += part.length;
+      if (i + 100 < ids.length) await sleep(rand(1500, 3200));
+    }
+  } finally { unlogRefreshing = false; }
+  return { ok: true, done, gone, left: Math.max(0, ids.length - done) };
+}
+
+// ===========================================================================
 // Messages
 // ===========================================================================
 const FETCH_ALLOWED = /^https:\/\/(abs(-\d+)?\.twimg\.com|x\.com|twitter\.com)\//;
@@ -4435,6 +4603,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case "actlogClear": { actMem = []; await save({ [K.actlog]: [] }); return { ok: true }; }
 
+      case "refollow": return refollowQueue(msg.ids);
+      case "unlogRefresh": return unlogRefresh(msg);
       case "unfReset": {
         const j = await load(K.job, null);
         if (j && ACTIVE.has(j.status)) { const c = (await load(K.ctl, null)) || {}; c.unfReset = true; await save({ [K.ctl]: c }); scheduleTick(500); }

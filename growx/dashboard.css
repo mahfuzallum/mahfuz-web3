@@ -1204,3 +1204,54 @@ label.opt { cursor: pointer; }
 .ir-row em { font-style: normal; font-size: 11.5px; color: var(--muted); flex: 1 1 100%; }
 .ir-row.ir-ok b { color: var(--success); }
 .ir-row.ir-bad b { color: var(--danger-text); }
+
+/* ---- v3.2 live unfollow stream ---------------------------------------------------- */
+.unf-stream { padding: 14px 16px; margin-bottom: 14px; }
+.unf-stream.compact { padding: 0; margin: 10px 0 4px; background: none; border: 0; box-shadow: none; }
+.us-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.us-head small { color: var(--muted); }
+.us-list { display: flex; flex-direction: column; gap: 6px; position: relative; }
+.us-row { display: grid; grid-template-columns: 10px auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 12px; background: var(--surface-2); animation: usIn .45s var(--ease-spring) both; }
+.us-row .us-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.us-row.done { opacity: .62; }
+.us-row.done .us-dot { background: var(--success); }
+.us-row.now { background: var(--violet-soft); box-shadow: inset 0 0 0 1.5px var(--violet); }
+.us-row.now .us-dot { background: var(--violet); animation: usPulse 1.2s ease-in-out infinite; }
+.us-row.next .us-dot { background: transparent; box-shadow: inset 0 0 0 2px var(--border-strong); }
+.us-who { min-width: 0; display: flex; flex-direction: column; }
+.us-who b, .us-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.us-who small { color: var(--muted); font-size: 11.5px; }
+.us-tag { font-style: normal; font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.us-row.now .us-tag { color: var(--violet-text); }
+.us-row time { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.us-empty { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+@keyframes usIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.us-row.done { animation-name: usInDone; }
+@keyframes usInDone { from { opacity: 0; transform: translateY(10px); } to { opacity: .62; transform: none; } }
+@keyframes usPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .us-row, .us-row .us-dot { animation: none !important; } }
+
+/* ---- v3.2 Unfollowed page: filters, score, follow again ----------------------------- */
+.ul-filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; padding: 12px 14px; margin-bottom: 12px; }
+.ul-filters > label:not(.switch) { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.ul-filters > label > span { font-weight: 650; }
+.ul-filters .input.num { width: 96px; }
+.ul-filters em { font-style: normal; font-size: 11px; }
+.ul-filters .select { min-width: 150px; }
+.ul-cols-x { grid-template-columns: 22px minmax(200px, 2.2fr) 130px 110px minmax(170px, 2fr) 120px; }
+.ul-score { display: flex; align-items: center; gap: 8px; }
+.ul-score small { color: var(--muted); font-size: 11.5px; }
+.qs { display: inline-grid; place-items: center; min-width: 34px; height: 24px; padding: 0 6px; border-radius: 8px; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.qs.hi { background: var(--success-soft); color: var(--success-text); }
+.qs.mid { background: var(--accent-soft); color: var(--accent-text); }
+.qs.lo { background: var(--surface-3); color: var(--text-2); }
+.lp-ok { color: var(--success-text); font-weight: 650; }
+.lp-old { color: var(--muted); }
+.ul-mistake { box-shadow: inset 3px 0 0 var(--warn); }
+.tg.wait { background: var(--info-soft); color: var(--info); }
+@media (max-width: 900px) {
+  .ul-cols-x { grid-template-columns: 22px 1fr auto; }
+  .ul-cols-x > :nth-child(4), .ul-cols-x > :nth-child(5), .ul-cols-x > :nth-child(6) { display: none; }
+  .us-row { grid-template-columns: 10px auto minmax(0, 1fr) auto; }
+  .us-row time { display: none; }
+}

@@ -1148,7 +1148,7 @@
       const u = parseRestUser(x);
       if (!u) continue;
       if (x && ("ext_is_blue_verified" in x || "is_blue_verified" in x)) carries = true;
-      map[u.i] = { h: u.h, n: u.n, a: u.a, fw: u.fw, fy: u.fy, sc: u.sc, lt: u.lt, p: u.p, d: u.d, fc: u.fc, fr: u.fr, v: u.v };
+      map[u.i] = { h: u.h, n: u.n, a: u.a, fw: u.fw, fy: u.fy, sc: u.sc, lt: u.lt, p: u.p, d: u.d, fc: u.fc, fr: u.fr, v: u.v, ca: u.ca };
     }
     let vsrc = carries ? "lookup" : "";
     if (opts && opts.verified && !carries && Object.keys(map).length) {
