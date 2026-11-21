@@ -27,7 +27,8 @@
     target: "gx.cmt.target",    // the target accounts
     hist: "gx.cmt.hist",        // what was posted, newest first (text is compacted after a while)
     key: "gx.cmt.key",          // the OpenAI key, apart from the settings
-    tg: "gx.tg", timings: "gx.cmt.timings"                 // Telegram bot token, chat id and per-event switches
+    tg: "gx.tg", timings: "gx.cmt.timings",                // Telegram bot token, chat id and per-event switches
+    focus: "gx.cmt.focus"       // v3.2 started from the Comment page with links: work only on those, don't switch away
   };
 
   // ---- the models GrowX can write with -------------------------------------
@@ -558,8 +559,56 @@
     const byPace = 3600 / per;
     const cap = Math.max(1, Number(c && c.hourCap) || s.cmtHourlyLimit);
     const perHour = Math.min(byPace, cap);
-    const seconds = Math.round((left / perHour) * 3600);
-    return { seconds, at: now + seconds * 1000, perHour: Math.round(perHour * 10) / 10, per, capped: cap < byPace, left };
+    // v3.2: walk the replies one by one with the breaks, the hourly cap, the day's goal and the working hours,
+    // so "finishes at" is the time the engine will really get there.
+    const plan = cmtPlan(s, { left, hourCap: cap, todayLeft: c && c.todayLeft != null ? c.todayLeft : null }, now);
+    const seconds = plan ? plan.seconds : Math.round((left / perHour) * 3600);
+    return { seconds, at: now + seconds * 1000, perHour: Math.round(perHour * 10) / 10, per, capped: cap < byPace, left,
+      work: plan ? plan.work : seconds, breaks: plan ? plan.breaks : 0, days: plan ? plan.days : 0, waitsForWindow: plan ? plan.waitsForWindow : false };
+  }
+  const hm = (t) => { const m = String(t || "").match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  // Inside the Comment working hours at time t? ("Right away" = always.) The window may cross midnight (21:00 - 03:00).
+  function cmtInHours(s, t) {
+    if (s.cmtStartNow) return true;
+    const a = hm(s.cmtStart), b = hm(s.cmtEnd);
+    if (a == null || b == null || a === b) return true;
+    const d = new Date(t), m = d.getHours() * 60 + d.getMinutes();
+    return a < b ? (m >= a && m < b) : (m >= a || m < b);
+  }
+  function cmtNextOpen(s, t) {
+    if (cmtInHours(s, t)) return t;
+    const a = hm(s.cmtStart);
+    const d = new Date(t); d.setSeconds(0, 0); d.setHours(Math.floor(a / 60), a % 60, 0, 0);
+    if (d.getTime() <= t) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  // Reply by reply: delay + read + write + like + post (cmtStepSeconds), a break after every
+  // (cmtRestEveryMin..cmtRestEvery) replies, never more than the hourly cap in any hour, never past the day's goal
+  // (the rest moves to the next day), and only inside the working hours.
+  function cmtPlan(s, c, now) {
+    now = now || Date.now();
+    let left = Math.max(0, Number(c && c.left) || 0);
+    if (!left) return null;
+    const per = Math.max(1, cmtStepSeconds(s)) * 1000;
+    const cap = Math.max(1, Number(c && c.hourCap) || s.cmtHourlyLimit);
+    const gap = Math.max(per, 3600000 / cap);
+    const every = (s.cmtRestEveryMin + s.cmtRestEvery) / 2;
+    const brk = ((s.cmtRestMinutes + s.cmtRestMinutesMax) / 2) * 60000;
+    let dayLeft = c && c.todayLeft != null ? Math.max(0, c.todayLeft) : s.cmtDaily;
+    let t = cmtNextOpen(s, now), since = 0, breaks = 0, days = 0, work = 0, guard = 0;
+    const waitsForWindow = t > now;
+    let day = new Date(t).toDateString();
+    while (left > 0 && guard++ < 5000) {
+      if (dayLeft <= 0) {
+        const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(0, 0, 0, 0);
+        t = cmtNextOpen(s, d.getTime()); dayLeft = s.cmtDaily; days++; since = 0; day = new Date(t).toDateString();
+      }
+      if (!cmtInHours(s, t)) { t = cmtNextOpen(s, t); since = 0; }
+      if (new Date(t).toDateString() !== day) { day = new Date(t).toDateString(); dayLeft = s.cmtDaily; }   // a new calendar day: a fresh goal
+      t += gap; work += gap; left--; dayLeft--; since++;
+      if (left > 0 && every > 0 && s.cmtRestEvery > 0 && since >= every) { t += brk; breaks++; since = 0; }
+    }
+    return { seconds: Math.round((t - now) / 1000), at: t, work: Math.round(work / 1000), breaks, days, waitsForWindow };
   }
 
   // ---- the queue -----------------------------------------------------------
@@ -582,7 +631,7 @@
     DEFAULT_PROMPT, DEFAULT_BACK_PROMPT, DEFAULT_BANNED, DEFAULT_FILLERS,
     CMT_LANGS, CMT_TONES, CMT_MOODS, CMT_LENGTHS, styleBlock,
     normalizeComment, postId, postHandle, parseLinks, postUrl,
-    CMT_TIMINGS, CMT_TIMING_KEYS, cmtStepSeconds, cmtFinish,
+    CMT_TIMINGS, CMT_TIMING_KEYS, cmtStepSeconds, cmtFinish, cmtPlan, cmtInHours, cmtNextOpen,
     waitFetch, waitRead, waitGen, waitApprove,
     wordForms, bannedSet, sharesRun, likeness, autoFix, checkReply,
     cmtPace, waitOpen, waitPost, waitLike,

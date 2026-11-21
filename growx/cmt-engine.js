@@ -208,12 +208,14 @@ async function cmtAdd(items, src, opts) {
   const q = await cmtQueue();
   const replied = await cmtReplied();
   const have = new Set(q.map((r) => String(r.id)));
-  const out = { pasted: 0, dup: 0, already: 0, queued: 0, added: 0, rows: [] };
+  const out = { pasted: 0, dup: 0, already: 0, queued: 0, added: 0, mine: 0, rows: [] };
+  const me = await cmtMyHandle();
   for (const it of items || []) {
     const id = typeof it === "string" ? GX.postId(it) : (it && GX.postId(it.id));
     if (!id) continue;
     out.pasted++;
     if (it && it.dup) { out.dup++; continue; }
+    if (me && it && it.h && String(it.h).toLowerCase() === me) { out.mine++; continue; }   // v3.2: never your own post
     if (replied.has(id)) { out.already++; continue; }
     if (have.has(id)) { out.queued++; continue; }
     have.add(id);
@@ -226,6 +228,11 @@ async function cmtAdd(items, src, opts) {
   return out;
 }
 
+// v3.2 the signed-in account's @name, lower-cased (from the account GrowX last read), or "".
+async function cmtMyHandle() {
+  const acc = await load(K.account, null);
+  return acc && acc.handle ? String(acc.handle).toLowerCase() : "";
+}
 const cmtOpenRows = (q) => q.filter(GX.cmtOpen);
 const cmtReadyRows = (q) => q.filter((r) => r.st === "ready");
 
@@ -582,7 +589,8 @@ async function commentStep(job, s, now) {
 
   // ---- 2. the day's and this turn's numbers ----------------------------
   const todayN = await cmtTodayN(now);
-  if (await turnOver(job, s, now, "comment")) return park(job, s, job.restUntil, true);
+  const focus = await load(GX.CK.focus, null);          // v3.2 started with links from the Comment page
+  if (!focus && await turnOver(job, s, now, "comment")) return park(job, s, job.restUntil, true);
   if (todayN >= s.cmtDaily) {
     const msg = `Daily goal of ${s.cmtDaily} replies reached.`;
     if (await beginSwitch(job, s, now, "comment", msg)) return park(job, s, job.restUntil, true);
@@ -640,6 +648,15 @@ async function commentStep(job, s, now) {
     if (!live && !job.cmtEmptyNoted) {
       job.cmtEmptyNoted = true;
       await notify("cmtempty", "GrowX needs post links", "Paste a few post links on the Comment page and GrowX carries on.");
+    }
+    if (focus) {
+      // Every link you started with is done: say so plainly. With a mode sequence the next mode takes over.
+      await chrome.storage.local.remove(GX.CK.focus);
+      const msg = `All your links are done - ${plural(job.cdone || 0, "reply")} posted this run.`;
+      await pushEvent("cmt", msg);
+      await notify("milestone", "GrowX: comment links done", msg);
+      if (GX.cycling(s) && await beginSwitch(job, s, now, "comment", msg, { turn: true })) return park(job, s, job.restUntil, true);
+      return finishJob(job, "done", msg);
     }
     if (GX.cycling(s) && await beginSwitch(job, s, now, "comment", "Comment: nothing left in the queue.", { turn: true })) return park(job, s, job.restUntil, true);
     rest(job, "empty", until, live
@@ -709,7 +726,9 @@ async function cmtPrepare(job, s, now, row, key) {
   // ---- the skip checks -------------------------------------------------
   const skip = await (async () => {
     if (post.repliedByMe) return "replied";
-    if (job.ownerId && post.author && String(post.author.id) === String(job.ownerId) && row.src !== "back") return "mine";
+    // v3.2: never a reply on your own post - whatever the source (the author is checked on the post itself).
+    if (job.ownerId && post.author && String(post.author.id) === String(job.ownerId)) return "mine";
+    { const me = await cmtMyHandle(); if (me && post.author && String(post.author.h || "").toLowerCase() === me) return "mine"; }
     if (post.at && now - post.at > s.cmtMaxAgeDays * DAY) return "old";
     if (s.cmtSkipLimited && post.limited) return "limited";
     if (s.cmtSkipLiked && post.liked) return "liked";
@@ -983,17 +1002,21 @@ async function cmtCmd(msg) {
       return Object.assign({ ok: true }, out);
     }
 
+    case "preflight": return Object.assign({ ok: true }, await cmtPreflight(msg.text || ""));
+    case "go": return cmtGo(msg);
     case "preview": {
       // What a paste would do, without changing anything.
       const items = GX.parseLinks(msg.text || "");
       const q = await cmtQueue();
       const replied = await cmtReplied();
       const have = new Set(q.map((r) => String(r.id)));
-      const out = { ok: true, pasted: 0, dup: 0, already: 0, queued: 0, added: 0 };
+      const out = { ok: true, pasted: 0, dup: 0, already: 0, queued: 0, added: 0, mine: 0 };
       const seen = new Set();
+      const me = await cmtMyHandle();
       for (const it of items) {
         out.pasted++;
         if (it.dup) { out.dup++; continue; }
+        if (me && it.h && String(it.h).toLowerCase() === me) { out.mine++; continue; }
         if (replied.has(it.id)) { out.already++; continue; }
         if (have.has(it.id) || seen.has(it.id)) { out.queued++; continue; }
         seen.add(it.id); out.added++;
@@ -1228,6 +1251,63 @@ async function cmtResolve(tabId, h) {
 }
 
 // Everything Comment mode knows, for the pages.
+// ---- v3.2 "Start commenting": everything that has to be true first, said plainly -------------------
+// Each item: { k, ok, block, text, fix }. block = it cannot start until this is fixed; the others are notes.
+async function cmtPreflight(text) {
+  const now = Date.now();
+  const s = await getSettings();
+  const items = [];
+  const add = (k, ok, block, txt, fix) => items.push({ k, ok: !!ok, block: !ok && !!block, text: txt, fix: ok ? "" : (fix || "") });
+  const key = await cmtKey();
+  add("on", s.cmtOn, true, s.cmtOn ? "Comment mode is ON" : "Comment mode is switched OFF", "turnOn");
+  add("key", !!key, true, key ? "OpenAI key is saved" : "No OpenAI key yet - GrowX needs it to write the replies", "key");
+  const acc = await load(K.account, null);
+  add("x", !!(acc && acc.id), false, acc && acc.id ? `Signed in to X as @${acc.handle || acc.id}` : "Not sure you are signed in to X - GrowX checks when it starts", "openX");
+  const pasted = GX.parseLinks(text || "");
+  const q = await cmtQueue();
+  const open = cmtOpenRows(q).length;
+  const me = await cmtMyHandle();
+  const mine = me ? pasted.filter((it) => it.h && String(it.h).toLowerCase() === me).length : 0;
+  const fresh = pasted.filter((it) => !it.dup && !(me && it.h && String(it.h).toLowerCase() === me)).length;
+  add("links", open + fresh > 0, true, open + fresh > 0 ? `${fresh ? fresh + " new link" + (fresh === 1 ? "" : "s") + " pasted" : ""}${fresh && open ? " + " : ""}${open ? open + " already waiting in the queue" : ""}` : "No post links - paste at least one link", "links");
+  if (mine) add("mine", false, false, `${mine} of the links ${mine === 1 ? "is" : "are"} your own post - ${mine === 1 ? "it is" : "they are"} skipped (GrowX never replies to your own posts)`);
+  const spent = await cmtSpendToday(now), cap = s.cmtSpendCents / 100;
+  add("spend", spent < cap, true, spent < cap ? `AI spend today $${spent.toFixed(3)} of $${cap.toFixed(2)}` : `Today's AI spend cap of $${cap.toFixed(2)} is used up`, "spend");
+  const todayN = await cmtTodayN(now);
+  add("goal", todayN < s.cmtDaily, true, todayN < s.cmtDaily ? `Today: ${todayN} of ${s.cmtDaily} replies - ${s.cmtDaily - todayN} left` : `Today's goal of ${s.cmtDaily} replies is already reached`, "goal");
+  const meta = await load(K.meta, {});
+  add("limited", meta.cLimitedDay !== dayKey(now), true, meta.cLimitedDay !== dayKey(now) ? "X has not limited your replies today" : "X limited your replies today - Comment waits until tomorrow to keep the account safe");
+  const inH = GX.cmtInHours(s, now);
+  add("hours", inH, false, inH ? (s.cmtStartNow ? "Works right away (all day)" : `Inside your working hours (${s.cmtStart} - ${s.cmtEnd})`) : `Working hours only (${s.cmtStart} - ${s.cmtEnd}): it waits until ${clock(GX.cmtNextOpen(s, now))}`, "startNow");
+  add("like", s.cmtLike, false, s.cmtLike ? "Likes each post first, then replies" : "Like before reply is OFF", "likeOn");
+  add("publish", s.cmtPublish === "auto", false, s.cmtPublish === "auto" ? "GrowX posts each reply itself" : "Drafts only - GrowX writes, you post", "auto");
+  const job = await load(K.job, null);
+  if (job && ACTIVE.has(job.status) && jobMode(job) !== "comment") add("other", false, false, `${MODE_NAME[jobMode(job)]} mode is running now - it hands over to Comment on its next step`);
+  const left = open + fresh;
+  const hourCap = GX.hourlyCap(s, "comment").cap;
+  const eta = left ? GX.cmtFinish(s, { left, todayLeft: Math.max(0, s.cmtDaily - todayN), hourCap }, now) : null;
+  return { items, canStart: !items.some((x) => x.block), left, fresh, open, mine, eta, perReply: GX.cmtStepSeconds(s), hourCap };
+}
+// Paste + Start in one go: add the links, check everything, then start Comment (or hand over to it) and stay on
+// those links until they are done.
+async function cmtGo(msg) {
+  const items = GX.parseLinks(msg.text || "");
+  const added = items.length ? await cmtAdd(items, "links") : { added: 0, mine: 0, already: 0, queued: 0, dup: 0 };
+  const pf = await cmtPreflight("");
+  if (!pf.canStart) return { ok: false, preflight: pf, add: added, error: (pf.items.find((x) => x.block) || {}).text || "Can't start yet." };
+  await save({ [GX.CK.focus]: { at: Date.now() } });
+  const job = await load(K.job, null);
+  if (job && ACTIVE.has(job.status)) {
+    const other = jobMode(job) !== "comment";
+    if (other) await saveSettings({ runMode: "comment" }, { noStart: true });
+    scheduleTick(300);
+    return { ok: true, switched: other, add: added, preflight: pf };
+  }
+  const r = await startJob("comment", "Comment links");
+  if (!r || !r.ok) { await chrome.storage.local.remove(GX.CK.focus); return Object.assign({ add: added, preflight: pf }, r || { ok: false }); }
+  return { ok: true, started: true, add: added, preflight: pf };
+}
+
 async function cmtState() {
   const now = Date.now();
   const s = await getRawSettings();

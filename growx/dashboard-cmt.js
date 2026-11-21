@@ -39,6 +39,7 @@
     document.addEventListener("change", onChange);
     document.addEventListener("input", onInput);
     $("#cmtText") && $("#cmtText").addEventListener("input", debounce(previewPaste, 350));
+    $("#cmtGoText") && $("#cmtGoText").addEventListener("input", debounce(() => renderGo(true), 400));
     document.addEventListener("input", (e) => { if (e.target && e.target.id === "ovcText") ovcDebounced(); });
   }
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
@@ -314,6 +315,7 @@
     const s = sOf();
     const c = st.cmt || {};
     renderCtl();
+    renderGo();
     renderHero(s, c);
     renderStats(s, c);
     renderLimits(s, c);
@@ -322,6 +324,79 @@
     if (ui.tab === "target") renderTargets();
     if (ui.tab === "back") renderBack(s);
     await renderRows();
+  }
+
+  // ---- v3.2 Start commenting: the checklist, the time it takes, one button ---------------------------
+  const FIX_LABEL = { turnOn: "Turn on", key: "Add key", startNow: "Start now anyway", likeOn: "Turn on", auto: "Post automatically", spend: "Raise the cap", goal: "Raise the goal", links: "Paste links", openX: "Open x.com" };
+  let goAt = 0, goBusy = false;
+  async function renderGo(force) {
+    const box = $("#cmtCheck");
+    if (!box) return;
+    const txt = $("#cmtGoText");
+    if (!force && Date.now() - goAt < 2500) return;
+    if (goBusy) return;
+    goAt = Date.now(); goBusy = true;
+    let r;
+    try { r = await cmd("preflight", { text: txt ? txt.value : "" }); } finally { goBusy = false; }
+    if (!r || !r.ok) return;
+    ui.pf = r;
+    const ic = (x) => x.ok ? U.icon("check") : x.block ? U.icon("x") : U.icon("info");
+    const rows = r.items.map((x) => `<div class="ck ${x.ok ? "ok" : x.block ? "no" : "note"}"><span class="ck-ic">${ic(x)}</span><span class="ck-t">${esc(x.text)}</span>${x.fix ? `<button type="button" class="btn btn-xs ${x.block ? "btn-primary" : ""}" data-cfix="${esc(x.fix)}"><span>${esc(FIX_LABEL[x.fix] || "Fix")}</span></button>` : ""}</div>`).join("");
+    const blockers = r.items.filter((x) => x.block).length;
+    setHtml("cmtCheck", box, `<div class="ck-head"><b>${blockers ? `${blockers} thing${blockers === 1 ? "" : "s"} to fix before it can start` : "Ready to start"}</b><small>checked just now</small></div>${rows}`);
+    const job = st && st.job;
+    const running = job && ["running", "resting", "sleeping"].includes(job.status) && (job.runMode === "comment" || job.mode === "comment");
+    const btn = $("#cmtGoBtn");
+    if (btn) {
+      btn.disabled = !r.canStart && !(txt && txt.value.trim());
+      btn.querySelector("span").textContent = running ? (r.fresh ? `Add ${r.fresh} and keep going` : "Running - add more links") : r.fresh ? `Start with ${r.fresh} link${r.fresh === 1 ? "" : "s"}` : "Start commenting";
+    }
+    const sum = $("#cmtGoSum");
+    if (sum) sum.textContent = r.mine ? `${r.mine} own post${r.mine === 1 ? "" : "s"} will be skipped` : r.fresh ? `${r.fresh} new link${r.fresh === 1 ? "" : "s"} in the box` : "";
+    const eta = $("#cmtEta");
+    if (eta) {
+      const e = r.eta;
+      setHtml("cmtEta", eta, e ? `<div class="eta-grid">
+          <div><small>Posts to do</small><b>${fmt(r.left)}</b></div>
+          <div><small>Per reply</small><b>${U.dur(r.perReply)}</b><span>wait + read + write${sOf().cmtLike ? " + like" : ""} + post</span></div>
+          <div><small>Total time</small><b>${U.dur(e.seconds)}</b><span>${e.breaks ? `${e.breaks} break${e.breaks === 1 ? "" : "s"}` : "no break needed"}${e.capped ? ` · max ${fmt(r.hourCap)}/hour` : ""}</span></div>
+          <div><small>Finishes</small><b>${U.clock(e.at)}</b><span>${e.days ? `${new Date(e.at).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} - your daily goal moves the rest to the next day` : new Date(e.at).toDateString() !== new Date().toDateString() ? "after midnight" : "today"}${e.waitsForWindow ? " · starts with your working hours" : ""}</span></div>
+        </div>` : `<p class="hint">Paste links to see how long they take and when they finish - worked out from your own delays, breaks, hourly cap and working hours.</p>`);
+    }
+  }
+  async function cmtGoClick() {
+    const txt = $("#cmtGoText");
+    const btn = $("#cmtGoBtn");
+    btn.disabled = true;
+    let r;
+    try { r = await cmd("go", { text: txt ? txt.value : "" }); } finally { btn.disabled = false; }
+    if (r && r.preflight) ui.pf = r.preflight;
+    if (!r || !r.ok) {
+      U.toast((r && r.error) || "Couldn't start.", "bad", 6000);
+      if (r && r.add && r.add.added && txt) txt.value = "";
+      return renderGo(true);
+    }
+    const a = r.add || {};
+    if (txt) txt.value = "";
+    U.toast(`${a.added ? `${a.added} link${a.added === 1 ? "" : "s"} added. ` : ""}${r.started ? "Comment mode started - it likes each post, then replies." : r.switched ? "Switching to Comment mode - it takes over on the next step." : "Comment mode keeps going with these links."}${a.mine ? ` ${a.mine} own post${a.mine === 1 ? "" : "s"} skipped.` : ""}`, "good", 6000);
+    await load(true);
+    if (window.GXD && GXD.refresh) GXD.refresh();
+    renderGo(true);
+  }
+  async function cmtFix(k) {
+    if (k === "turnOn") { await saveOne({ cmtOn: true }); }
+    else if (k === "startNow") { await saveOne({ cmtStartNow: true }); U.toast("Working hours set to Right away.", "good"); }
+    else if (k === "likeOn") { await saveOne({ cmtLike: true }); }
+    else if (k === "auto") { await saveOne({ cmtPublish: "auto" }); }
+    else if (k === "links") { const t = $("#cmtGoText"); if (t) t.focus(); return; }
+    else if (k === "openX") { await U.cmd("openX"); return; }
+    else if (k === "key" || k === "spend" || k === "goal") {
+      location.hash = "#autopilot";
+      setTimeout(() => { const el = k === "key" ? $("#cmtKey") : $(`[data-ck="${k === "spend" ? "cmtSpendCents" : "cmtDaily"}"]`); if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); } }, 400);
+      return;
+    }
+    if (window.GXD && GXD.refresh) GXD.refresh();
+    renderGo(true);
   }
 
   function renderCtl() {
@@ -440,6 +515,7 @@
         + chip(r.dup, "duplicate · counted once", "amber")
         + chip(r.already, "already replied · skipped", "amber")
         + chip(r.queued, "already in queue · skipped", "amber")
+        + chip(r.mine, "your own post · never replied to", "amber")
         + chip(r.added, "new", "green")
       : "";
     const btn = $("#cmtAdd");
@@ -1079,6 +1155,17 @@
       const m = ms.dataset.mstart;
       ms.disabled = true;
       const live = st.job && ["running", "resting", "sleeping"].includes(st.job.status);
+      // v3.2: Comment says what is missing instead of switching over and doing nothing.
+      if (m === "comment") {
+        const pf = await cmd("preflight", { text: "" });
+        if (pf && pf.ok && !pf.canStart) {
+          ms.disabled = false;
+          const first = pf.items.find((x) => x.block);
+          U.toast(`Comment can't start yet: ${first ? first.text : "something is missing"}. The Comment page shows what to fix.`, "bad", 6500);
+          location.hash = "#comment";
+          return;
+        }
+      }
       let r;
       if (live) r = await U.cmd("saveSettings", { patch: { runMode: m } });
       else r = await U.cmd("start", { mode: m });
@@ -1093,6 +1180,10 @@
       if (window.GXD && GXD.refresh) GXD.refresh();
       return;
     }
+
+    if (close("#cmtGoBtn")) { cmtGoClick(); return; }
+    const fx = close("[data-cfix]");
+    if (fx) { cmtFix(fx.dataset.cfix); return; }
 
     if (close("#ovcAdd")) {
       const box = $("#ovcText");

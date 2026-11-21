@@ -1855,6 +1855,7 @@ async function finishJob(job, status, message) {
   job.inFlight = null;
   job.restUntil = null;
   await save({ [K.job]: job });
+  try { await chrome.storage.local.remove(GX.CK.focus); } catch (_) {}   // v3.2 a finished run ends "work only on my links"
   keepAlive(false);
   syncPower(false);
   await flushSeen(true);
