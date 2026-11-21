@@ -1957,6 +1957,17 @@
   // =====================================================================
   async function renderTargeting() {
     const s = draft("targeting");
+    try {
+      const lh = $("#learnHint");
+      if (lh) {
+        const cut = Date.now() - 3 * DAY;
+        let n = 0, b = 0;
+        for (const f of await getFollows()) if (f && f.t && f.t <= cut && !f.fy0 && !f.p && !f.rf) { n++; if (f.fb) b++; }
+        lh.textContent = !s.learnScore ? "Learning is off - the score uses only the built-in rules."
+          : n >= 150 ? `Learning from ${U.fmt(n)} results - ${Math.round(b / n * 100)}% of them followed you back. Groups that do better than that get a higher score, groups that do worse a lower one.`
+          : `Learning starts after 150 results (follows older than 3 days) - ${U.fmt(n)} so far.`;
+      }
+    } catch (_) {}
     if (st && st.poolCount && !(cache.pool || []).length) cache.pool = null;      // the queue changed since it was read: read it again
     const pool = (await getPool()).filter((c) => !c.manual);
     const now = Date.now();
@@ -2528,6 +2539,7 @@
     const note = $("#estNote");
     if (!s.hourlyAuto && s.restEvery && e.L.hourly < e.schedPerHour * 0.98) { note.className = "est-note warn"; note.textContent = `Your breaks and delays produce about ${Math.round(e.schedPerHour)} follows an hour, but the hourly cap is ${e.L.hourly}. The cap will force extra long pauses - raise it to at least ${Math.ceil(e.schedPerHour)} so only your own breaks apply, or switch Per hour to Auto.`; }
     else if (!e.fits) { note.className = "est-note warn"; note.textContent = `With your breaks, ${U.fmt(e.goal)} follows need about ${U.dur(e.workSecs)} of work, but the Daily ON / OFF time (6) gives only ${e.winH.toFixed(1)} h. The target will not finish in one day. Make the ON / OFF time longer, shorten the breaks, or lower the target.`; }
+    else if (s.dailyLimit > 400 && s.speed === "premium") { note.className = "est-note warn"; note.textContent = `Premium plan: ${U.fmt(s.dailyLimit)} follows a day is about twice what X normally tolerates (~400). Use it only on an X Premium account that is well established - otherwise X may limit or lock it. Balanced or Safe is the safer choice.`; }
     else if (s.dailyLimit > 400 && s.speed !== "premium") { note.className = "est-note warn"; note.textContent = "Above ~400 follows a day is only safe with X Premium. Normal accounts hit X's daily follow limit there."; }
     else if (s.restEvery === 0) { note.className = "est-note warn"; note.textContent = "Breaks are off. Regular breaks are one of the strongest signals of a real person - keep them on."; }
     else if (!s.activeHours && !(s.sessionTarget > 0)) { note.className = "est-note warn"; note.textContent = "Running 24 hours a day looks automated. Set a run target or a Daily ON / OFF time."; }

@@ -68,7 +68,7 @@
     safe: { name: "Safe", tag: "New or warming-up accounts · warm-up on", per: "~150 / day" },
     balanced: { name: "Balanced", tag: "Recommended for most accounts", per: "~280 / day" },
     turbo: { name: "Turbo", tag: "Aged accounts with a clean record", per: "~390 / day" },
-    premium: { name: "Premium", tag: "X Premium accounts only", per: "~800 / day" }
+    premium: { name: "Premium", tag: "X Premium only - high risk", per: "~800 / day" }
   };
 
   const DEFAULT_BOOST = "follow back, followback, #followback, follow4follow, f4f, ifb, i follow back, 100% follow back, tfb, mutual, mutuals, 🔙, gain followers, #teamfollowback, #f4f, #ifb";

@@ -595,6 +595,65 @@ async function addNewFollowers(n) {
 // HARVEST - newest followers of the source profiles -> scored queue
 // ===========================================================================
 function srcRate(src) { return src.followed >= 20 ? (src.back || 0) / src.followed : 0.3; }
+
+// ---- v3.2 learning from YOUR results ---------------------------------------------------------------
+// Every follow GrowX made more than 3 days ago is a result: they followed back, or they didn't. Grouped by the
+// things that predict a follow-back (following/followers ratio, size, source), those results tell how much better
+// or worse each group really does than your average - and the score is nudged by that much (at most +/-15, and
+// +/-12 for the source). Smoothed, so a group with few results barely moves anything. Recomputed once an hour.
+const learnMem = { at: 0, data: null };
+const ratioBucket = (u) => (typeof u.fr === "number" && typeof u.fc === "number") ? (() => { const r = u.fr / Math.max(1, u.fc); return r >= 2 ? "r4" : r >= 1.2 ? "r3" : r >= 0.85 ? "r2" : r >= 0.5 ? "r1" : "r0"; })() : null;
+const sizeBucket = (u) => typeof u.fc === "number" ? (u.fc < 100 ? "f0" : u.fc < 500 ? "f1" : u.fc < 1500 ? "f2" : u.fc < 5000 ? "f3" : "f4") : null;
+async function learnData() {
+  if (learnMem.data && Date.now() - learnMem.at < HOUR) return learnMem.data;
+  const now = Date.now(), cut = now - 3 * DAY;
+  const d = { n: 0, b: 0, rate: null, r: {}, f: {}, src: {} };
+  const add = (map, k, back) => { if (!k) return; const x = map[k] || (map[k] = { n: 0, b: 0 }); x.n++; x.b += back; };
+  for (const f of await getFollows()) {
+    if (!f || !f.t || f.t > cut || f.fy0 || f.p || f.rf) continue;
+    const back = f.fb ? 1 : 0;
+    d.n++; d.b += back;
+    add(d.r, ratioBucket(f), back); add(d.f, sizeBucket(f), back); add(d.src, f.s ? String(f.s).toLowerCase() : null, back);
+  }
+  d.rate = d.n ? d.b / d.n : null;
+  learnMem.at = now; learnMem.data = d;
+  return d;
+}
+const LEARN_K = 25;
+const smooth = (x, L) => (x.b + LEARN_K * L.rate) / (x.n + LEARN_K);
+function learnAdjust(u, L) {
+  if (!L || L.n < 150 || L.rate == null) return 0;
+  let a = 0;
+  const rk = ratioBucket(u), fk = sizeBucket(u);
+  if (rk && L.r[rk]) a += (smooth(L.r[rk], L) - L.rate) * 45;
+  if (fk && L.f[fk]) a += (smooth(L.f[fk], L) - L.rate) * 45;
+  return Math.max(-15, Math.min(15, Math.round(a)));
+}
+function srcBoost(h, L) {
+  const x = L && L.rate != null && h ? L.src[String(h).toLowerCase()] : null;
+  if (!x || x.n < 30) return 0;
+  return Math.max(-12, Math.min(12, Math.round((smooth(x, L) - L.rate) * 40)));
+}
+// A source whose people keep not following back is paused once (you can switch it on again; it is not paused twice).
+async function srcAutoPauseCheck(s) {
+  if (!s.srcAutoPause) return;
+  const L = await learnData();
+  if (!L || L.rate == null) return;
+  const sources = await getSources();
+  let changed = false;
+  for (const src of sources) {
+    if (!src.enabled || src.ap) continue;
+    const x = L.src[String(src.h || "").toLowerCase()];
+    if (!x || x.n < s.srcPauseAfter) continue;
+    const r = x.b / x.n;
+    if (r * 100 < s.srcPauseBelow) {
+      src.enabled = false; src.ap = Date.now(); src.note = `Paused by GrowX: only ${Math.round(r * 100)}% followed back (${x.b} of ${x.n}).`;
+      changed = true;
+      await pushEvent("warn", `Source @${src.h} paused: only ${Math.round(r * 100)}% of the ${x.n} people followed from it followed back (your average is ${Math.round(L.rate * 100)}%). Switch it on again on the Sources page if you want.`);
+    }
+  }
+  if (changed) await saveSources();
+}
 const srcKey = (x) => String((x && x.h) || x || "").toLowerCase();
 const freshDue = (src, s, now) => !src.lastTopAt || now - src.lastTopAt >= s.freshEveryHours * HOUR;
 const readable = (src) => src.enabled && !["gone", "private", "error"].includes(src.status);
@@ -664,7 +723,7 @@ function compact(u, score, src, now) {
     i: u.i, h: u.h, n: String(u.n || "").slice(0, 60), a: u.a || "",
     fc: u.fc, fr: u.fr, sc: u.sc, ca: u.ca || null, lt: u.lt || null,
     v: !!u.v, p: !!u.p, fy: u.fy === true, b: String(u.b || "").slice(0, 160), loc: u.loc || "",
-    score, src, at: now
+    score, qs: GX.qualityScore(u), pos: typeof u.pos === "number" ? u.pos : undefined, src, at: now
   };
 }
 
@@ -676,6 +735,12 @@ function sortPool(pool) {
 // Follow mode, "Who first": best match first (the queue's own order), newest found first or oldest found first.
 // People you pinned always come first.
 function queueOrder(pool, s) {
+  // v3.2 "Big score first": the highest Quality score first (everyone in the queue already passed your
+  // follow-back score), the follow-back score breaks ties. Off = exactly the order below, as before.
+  if (pool.length && s && s.followQuality) {
+    const q = (c) => (c.qs != null ? c.qs : GX.qualityScore(c));
+    return pool.slice().sort((a, b) => ((b.pin ? 1 : 0) - (a.pin ? 1 : 0)) || (q(b) - q(a)) || ((b.score || 0) - (a.score || 0)));
+  }
   if (!pool.length || !s || !s.followOrder || s.followOrder === "score") return pool;
   const dir = s.followOrder === "new" ? -1 : 1;
   return pool.slice().sort((a, b) => ((b.pin ? 1 : 0) - (a.pin ? 1 : 0)) || dir * ((a.at || 0) - (b.at || 0)) || ((b.score || 0) - (a.score || 0)));
@@ -702,7 +767,8 @@ async function prunePool(s, now) {
     // so has no id of its own. Plus the same name twice, and the usual rules.
     const refollowOk = c.rf && c.i && idx.has(c.i) && idx.get(c.i).nf;      // v3.2 "Follow again": the old record says unfollowed
     if ((c.i && idx.has(c.i) && !refollowOk) || (k && byHandle.has(k)) || (k && seen.has(k)) || bl.has(k)
-        || (!c.manual && !c.pin && now - (c.at || 0) > maxAge)) { pool.splice(i, 1); continue; }
+        || (!c.manual && !c.pin && now - (c.at || 0) > maxAge)
+        || (!c.manual && !c.rf && s.skipCapped && GX.atFollowCap(c))) { pool.splice(i, 1); continue; }
     if (k) seen.add(k);
   }
   if (pool.length !== before) await savePool();
@@ -823,6 +889,8 @@ async function harvestStep(ctx, s, sweep) {
   const inPool = new Set(pool.map((c) => c.i));
   let fresh = 0, added = 0, rejected = 0;
   const reasons = {};
+  const L = s.learnScore ? await learnData() : null;
+  const srb = L ? srcBoost(src.h, L) : 0;
   (r.users || []).forEach((u, i) => {
     if (!u || !u.i || u.i === ctx.ownerId) return;
     if (seen.has(u.i) || idx.has(u.i) || inPool.has(u.i)) return;
@@ -832,6 +900,7 @@ async function harvestStep(ctx, s, sweep) {
     if (src.pass.fresh) u.pos = src.pass.offset + i;
     const why = GX.rejectReason(u, s, now);
     if (why) { rejected++; reasons[why] = (reasons[why] || 0) + 1; return; }
+    if (L) { u.lrn = learnAdjust(u, L); u.srb = srb; }
     const score = GX.scoreUser(u, s, now);
     if (score < s.minScore) { rejected++; reasons["low score"] = (reasons["low score"] || 0) + 1; return; }
     pool.push(compact(u, score, src.h, now));
@@ -3006,22 +3075,28 @@ async function freshBlacklist() { mem.blacklist = null; return getBlacklist(); }
 
 // Looks up the next 100 on the list once more and keeps only those that are really worth following back right now.
 async function bkNextBatch(job, s, b, now) {
-  const ids = b.list.slice(b.pos, b.pos + 100);
-  const ask = { gx: "uinfo", ids, verified: !!s.bkVerifiedOnly };     // verified: X's badge is needed too
-  let ri = await sendTab(job.tabId, ask, 45000);
-  if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
-  if (!ri || !ri.ok) return { fail: ri || { kind: "transient", message: "no answer" } };
-  let map = ri.map || {};
-  // X answered with far fewer accounts than asked. Ask once more. If it says the same again, believe the accounts it did
-  // answer (their data is fresh) and skip the missing ones for ONE day only - a slice of old followers can really be mostly
-  // deleted/suspended accounts, and the list must keep moving.
-  let thin = false;
-  if (ids.length >= 10 && Object.keys(map).length < ids.length * 0.5) {
-    const r2 = await sendTab(job.tabId, ask, 45000);
-    if (r2 && r2.uid && job.ownerId && r2.uid !== job.ownerId) return { wrongAccount: true };
-    if (!r2 || !r2.ok) return { fail: r2 || { kind: "transient", message: "no answer" } };
-    map = Object.assign({}, map, r2.map || {});
-    thin = Object.keys(map).length < ids.length * 0.5;
+  // v3.2 "Big score first" (bkQuality): three lookups (300 followers) at a time, the biggest / best followed back first.
+  const ids = b.list.slice(b.pos, b.pos + (s.bkQuality ? 300 : 100));
+  let map = {}, thin = false;
+  for (let o = 0; o < ids.length; o += 100) {
+    const part = ids.slice(o, o + 100);
+    const ask = { gx: "uinfo", ids: part, verified: !!s.bkVerifiedOnly };     // verified: X's badge is needed too
+    const ri = await sendTab(job.tabId, ask, 45000);
+    if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
+    if (!ri || !ri.ok) { if (o) { ids.length = o; break; } return { fail: ri || { kind: "transient", message: "no answer" } }; }
+    let pm = ri.map || {};
+    // X answered with far fewer accounts than asked. Ask once more. If it says the same again, believe the accounts it did
+    // answer (their data is fresh) and skip the missing ones for ONE day only - a slice of old followers can really be mostly
+    // deleted/suspended accounts, and the list must keep moving.
+    if (part.length >= 10 && Object.keys(pm).length < part.length * 0.5) {
+      const r2 = await sendTab(job.tabId, ask, 45000);
+      if (r2 && r2.uid && job.ownerId && r2.uid !== job.ownerId) return { wrongAccount: true };
+      if (!r2 || !r2.ok) { if (o) { ids.length = o; break; } return { fail: r2 || { kind: "transient", message: "no answer" } }; }
+      pm = Object.assign({}, pm, r2.map || {});
+      if (Object.keys(pm).length < part.length * 0.5) thin = true;
+    }
+    Object.assign(map, pm);
+    if (o + 100 < ids.length) await sleep(rand(1200, 2500));
   }
   const bl = await freshBlacklist();
   const go = [];
@@ -3037,8 +3112,9 @@ async function bkNextBatch(job, s, b, now) {
     if (m.fy === false) { lostHere.push({ i: id, h: m.h, n: m.n, a: m.a, fbAt: 0 }); return skipped(id, "unfollowed you since", true, 1); }   // not a follower any more (X's list was a little old): not looked at again today
     const why = bkWhy(m, s, bl, now);
     if (why) { if (why[0] === "verified badge unknown") unknownBadge++; return skipped(id, why[0], why[1], why[2]); }
-    go.push({ i: id, h: m.h, n: m.n || "", a: m.a || "", rk, fc: m.fc, fr: m.fr, p: !!m.p, d: !!m.d, sc: typeof m.sc === "number" ? m.sc : null, lt: m.lt || 0, v: m.v === true ? 1 : m.v === false ? 0 : null });
+    go.push({ i: id, h: m.h, n: m.n || "", a: m.a || "", rk, fc: m.fc, fr: m.fr, p: !!m.p, d: !!m.d, sc: typeof m.sc === "number" ? m.sc : null, lt: m.lt || 0, v: m.v === true ? 1 : m.v === false ? 0 : null, qs: GX.qualityScore(m) });
   });
+  if (s.bkQuality) go.sort((x, y) => (y.qs || 0) - (x.qs || 0));
   // X didn't show the verified badge for (almost) all of them: say so once in a while - nobody can be judged "verified" without it.
   if (unknownBadge >= 5 && unknownBadge >= ids.length * 0.5 && now - (b.badgeWarnAt || 0) > 6 * HOUR) {
     b.badgeWarnAt = now;
@@ -3597,7 +3673,8 @@ async function jobStep(job) {
     return park(job, s, job.restUntil, true);
   }
 
-  // 7. next candidate
+  // 7. next candidate (v3.2: once an hour, sources that keep doing badly are paused - see srcAutoPauseCheck)
+  if (now - (mem.srcApAt || 0) > HOUR) { mem.srcApAt = now; try { await srcAutoPauseCheck(s); } catch (_) {} }
   const pool = await prunePool(s, now);
   if (!pool.length) {
     if (!job.readUntil || now >= job.readUntil) {
@@ -3619,13 +3696,25 @@ async function jobStep(job) {
     return park(job, s, job.restUntil, true);
   }
   job.emptyNotified = false;
-  const t = pickCandidate(pool, s, now);
+  let t = pickCandidate(pool, s, now);
+  // 7b. v3.2 a fresh look at the front of the queue right before following: one lookup for up to 100 people.
+  // Anyone who meanwhile went quiet, got stuck at X's following limit, followed you already or no longer
+  // passes your rules comes off the queue, and the rest are scored again with today's numbers.
+  if (s.preCheck && t && t.i && !t.rf && !t.manual && !(t.pc > now - 6 * HOUR)) {
+    const pc = await preCheckQueue(job, s, pool, now);
+    if (pc.wrongAccount) { await haltFor(job, "account"); return park(job, s, Infinity, false); }
+    if (pc.rate) return readRate(job, s, Date.now(), pc.rate, "Checking the next people before following");
+    if (pc.removed) logLine(job, "", "skip", `fresh look: ${pc.removed} dropped from the queue (${Object.entries(pc.reasons).map(([k, v]) => `${v} ${k}`).join(", ")})`);
+    if (!pool.length) return park(job, s, Date.now() + 1500, true);
+    t = pickCandidate(pool, s, Date.now());
+  }
   job.current = { i: t.i, h: t.h, n: t.n, a: t.a, score: t.score, src: t.src };
   job.inFlight = { i: t.i, h: t.h, at: Date.now() };
   job.message = `Following @${t.h}...`;
   if (!await commitJob(job) || !ACTIVE.has(job.status)) return;
 
-  // 8. follow
+  // 8. follow (v3.2: optionally like one of their recent posts first - one more notification from you)
+  if (s.likeBeforeFollow && t.i && !t.rf) await likeFirst(job, t);
   let r = await followOne(job, t);
   job.inFlight = null;
   now = Date.now();
@@ -3720,6 +3809,55 @@ async function jobStep(job) {
   await flushSeen(false);
   if (job.status === "halted") return park(job, s, Infinity, false);
   return park(job, s, job.status === "resting" ? job.restUntil : job.nextAt, job.status === "running" || READS_OK_WHILE.has(job.restReason));
+}
+
+// v3.2 the fresh look before following (see step 7b).
+async function preCheckQueue(job, s, pool, now) {
+  const ordered = queueOrder(pool, s).filter((c) => c.i && !c.rf && !c.manual && !(c.pc > now - 6 * HOUR)).slice(0, 100);
+  if (!ordered.length) return {};
+  const ri = await sendTab(job.tabId, { gx: "uinfo", ids: ordered.map((c) => c.i) }, 45000);
+  if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
+  if (isRate(ri)) return { rate: ri };
+  if (!ri || !ri.ok) return {};
+  const L = s.learnScore ? await learnData() : null;
+  const sources = L ? await getSources() : [];
+  const reasons = {};
+  let removed = 0;
+  const drop = (c, why) => { const i = pool.indexOf(c); if (i >= 0) { pool.splice(i, 1); removed++; reasons[why] = (reasons[why] || 0) + 1; } };
+  for (const c of ordered) {
+    const m = (ri.map || {})[c.i];
+    if (!m) { drop(c, "gone"); continue; }
+    for (const k of ["fc", "fr", "sc", "lt", "ca"]) if (m[k] != null) c[k] = m[k];
+    c.p = !!m.p; c.d = !!m.d; if (m.v != null) c.v = !!m.v;
+    c.fw = m.fw; c.fy = m.fy === true;
+    c.pc = now;
+    const why = GX.rejectReason(c, s, now);
+    if (why) { drop(c, why); continue; }
+    if (L) { c.lrn = learnAdjust(c, L); const src = c.src && sources.find((x) => String(x.h).toLowerCase() === String(c.src).toLowerCase()); c.srb = src ? srcBoost(src.h, L) : 0; }
+    c.score = GX.scoreUser(c, s, now);
+    c.qs = GX.qualityScore(c);
+    if (c.score < s.minScore) drop(c, "low score");
+  }
+  delete ri.map;
+  sortPool(pool);
+  await savePool();
+  return { removed, reasons };
+}
+
+// v3.2 like one recent post of theirs (not a repost, not a reply) and pause like a person before the follow.
+// A failed like never stops the follow.
+async function likeFirst(job, t) {
+  try {
+    const p = await sendTab(job.tabId, { gx: "cmtPosts", userId: t.i, count: 10 }, 30000);
+    const post = p && p.ok && (p.posts || []).find((x) => x && x.id && !x.isRepost && !x.isReply && !x.liked);
+    if (!post) return false;
+    const lr = await sendTab(job.tabId, { gx: "cmtLike", id: post.id, owner: job.ownerId }, 30000);
+    if (!lr || !lr.ok) return false;
+    t.liked = 1;
+    await bumpStats({ likedBeforeFollow: 1 });
+    await sleep(rand(3500, 11000));
+    return true;
+  } catch (_) { return false; }
 }
 
 // One follow through X (used by Follow and by Follow back): the direct request first, the profile page as a fallback.

@@ -272,6 +272,21 @@
               </div>
             </div>
             <div class="card fs">
+              <div class="fs-head"><span data-icon="sparkles"></span><div><b>Better follow-back rate <i>new</i></b><small>Smarter choices about who gets followed - same daily number, more of them follow you back.</small></div></div>
+              <div class="switch-grid">
+                <label class="switch"><input type="checkbox" data-k="skipCapped"><span class="track"></span><span>Skip people stuck at X's following limit <em>(they can't follow anyone back)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="learnScore"><span class="track"></span><span>Learn from my results <em>(the score adapts to who really followed you back)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="preCheck"><span class="track"></span><span>Fresh look right before following <em>(still active, still able to follow back)</em></span></label>
+                <label class="switch"><input type="checkbox" data-k="srcAutoPause"><span class="track"></span><span>Pause sources that keep doing badly</span></label>
+                <label class="switch"><input type="checkbox" data-k="likeBeforeFollow"><span class="track"></span><span>Like one recent post before following <em>(more follow-backs, uses X's like limit)</em></span></label>
+              </div>
+              <div class="fgrid">
+                <div class="field"><label>Pause a source below</label><div class="with-unit"><input class="input num" type="number" min="0" max="100" data-k="srcPauseBelow"><span>% back</span></div></div>
+                <div class="field"><label>...after this many follows from it</label><div class="with-unit"><input class="input num" type="number" min="10" max="2000" data-k="srcPauseAfter"><span>follows</span></div><span class="hint">A paused source can be switched on again on the Sources page - it is not paused twice.</span></div>
+              </div>
+              <p class="hint" id="learnHint"></p>
+            </div>
+            <div class="card fs">
               <div class="fs-head"><span data-icon="search"></span><div><b>Keywords</b><small>Matched against name, @handle and bio. Comma separated.</small></div></div>
               <div class="field"><label>Boost - score +15 when found</label><textarea class="textarea" rows="2" data-k="boostKeywords"></textarea><span class="hint">"follow back" language is the strongest follow-back signal there is</span></div>
               <div class="field"><label>Require - only follow when one is found</label><textarea class="textarea" rows="2" data-k="includeKeywords" placeholder="e.g. founder, designer, crypto, fitness (empty = anyone)"></textarea></div>
@@ -567,6 +582,7 @@
                 <div class="field"><label>Follow-backs per day</label><div class="with-unit"><input class="input num" type="number" min="10" max="1000" data-k="bkDaily"><span>/ day</span></div><span class="hint">Your target. It keeps going until this number is done, then stops for the day.</span></div>
                 <div class="field hr-field" data-hr="followback"><label>Per hour</label><label class="switch hr-auto"><input type="checkbox" data-k="hourlyAuto"><span class="track"></span><span>Auto <em>(recommended)</em></span></label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="200" data-k="bkHourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="followback"></span></div>
                 <div class="field"><label>Who first</label><select class="select" data-k="bkOrder"><option value="new">Newest followers first</option><option value="old">Oldest followers first</option></select><span class="hint">Newest = whoever followed you most recently. It works through the whole list, one by one.</span></div>
+                <div class="field"><label>Big score first <i>new</i></label><label class="switch"><input type="checkbox" data-k="bkQuality"><span class="track"></span><span>Follow back the biggest / best first</span></label><span class="hint">On = GrowX looks at 300 followers at a time and follows back the highest Quality score first. Off = the order on the left.</span></div>
                 <div class="field"><label>Follow-backs per turn <i>mode sequence only</i></label><div class="with-unit"><input class="input num" type="number" min="0" max="100000" data-k="bkTurn"><span>/ turn</span></div><span class="hint">Used only when <strong>Mode sequence</strong> is on: after this many follow-backs GrowX hands over to the next mode and comes back to Follow back later. <strong>0</strong> = it does the whole day's number in one turn.</span></div>
               </div>
             </div>
@@ -713,6 +729,7 @@
                 <div class="field"><label>When the daily limit is reached</label><select class="select" data-k="onDailyCap"><option value="stop">Stop for today (recommended)</option><option value="wait">Wait, then continue by itself</option></select><span class="hint">"Wait" can mean a pause of many hours, until your oldest follow is 24 h old.</span></div>
                 <div class="field"><label>Maximum run time per day</label><div class="with-unit"><input class="input num" type="number" min="0" max="24" data-k="maxRunHours"><span>hours</span></div><span class="hint">Safety stop: it ends the day after this many hours, even if the target is not reached. 0 = no limit. 8-12 is a natural working day.</span></div>
                 <div class="field"><label>Who first</label><select class="select" data-k="followOrder"><option value="score">Best match first (recommended)</option><option value="new">Newest found first</option><option value="old">Oldest found first</option></select><span class="hint" id="followOrderHint">Best match = the highest follow-back score in your queue goes first.</span></div>
+                <div class="field"><label>Big score first <i>new</i></label><label class="switch"><input type="checkbox" data-k="followQuality"><span class="track"></span><span>Put the biggest / best accounts first</span></label><span class="hint" id="followQualityHint">Off = the follow-back order on the left, as now. On = the highest <strong>Quality score</strong> (followers, followers per following, verified, age, posts, activity) goes first - everyone in the queue has already passed your follow-back score.</span></div>
                 <div class="field hr-field" data-hr="follow"><label>Per hour</label><label class="switch hr-auto"><input type="checkbox" data-k="hourlyAuto"><span class="track"></span><span>Auto <em>(recommended)</em></span></label><div class="with-unit hr-manual"><input class="input num" type="number" min="1" max="200" data-k="hourlyLimit"><span>/ hour</span></div><span class="hint hr-hint" data-hr-hint="follow"></span></div>
               </div>
             </div>
