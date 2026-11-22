@@ -1,0 +1,400 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>GeckoTerminal Watchlist Film</title>
+<link rel="stylesheet" href="fonts.css">
+<style>html,body{margin:0;background:#07060f;overflow:hidden}canvas{display:block}</style>
+</head><body>
+<canvas id="c"></canvas>
+<script src="data.js"></script>
+<script src="timeline.js"></script>
+<script>
+const W=1920,H=1080;
+const SCALE=parseFloat(new URLSearchParams(location.search).get('s')||'2');
+const cv=document.getElementById('c'); cv.width=W*SCALE; cv.height=H*SCALE; cv.style.width=W+'px'; cv.style.height=H+'px';
+const ctx=cv.getContext('2d');
+const D=window.DATA, TL=window.TIMELINE;
+const SC={}; TL.scenes.forEach(s=>SC[s.id]=s);
+// ---------- palette ----------
+const C={bg0:'#07060f',bg1:'#120f26',ink:'#eeeaff',dim:'#9b94c4',faint:'#5d5788',pur:'#8b5cf6',pur2:'#b69bff',grn:'#34e39a',red:'#ff5f7e',amb:'#ffc861',line:'rgba(160,140,255,0.14)',card:'rgba(24,20,48,0.82)',cardB:'rgba(139,92,246,0.35)'};
+const F={h:"'Space Grotesk'",b:"'Inter'",m:"'JetBrains Mono'"};
+// ---------- helpers ----------
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const eo=t=>1-Math.pow(1-clamp(t),3);           // easeOutCubic
+const eio=t=>{t=clamp(t);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+const eback=t=>{t=clamp(t);const c1=1.4,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)};
+const prog=(lt,a,d)=>clamp((lt-a)/d);
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function txt(s,x,y,{size=32,font=F.b,weight=500,color=C.ink,align='left',base='alphabetic',ls=0,alpha=1}={}){
+  ctx.save();ctx.globalAlpha*=alpha;ctx.font=`${weight} ${size}px ${font}`;ctx.fillStyle=color;ctx.textAlign=align;ctx.textBaseline=base;
+  if(ls){ctx.letterSpacing=ls+'px';}
+  ctx.fillText(s,x,y);ctx.restore();}
+function tw(s,size,font=F.b,weight=500,ls=0){ctx.save();ctx.font=`${weight} ${size}px ${font}`;if(ls)ctx.letterSpacing=ls+'px';const w=ctx.measureText(s).width;ctx.restore();return w;}
+function glow(x,y,r,col,a){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,col.replace('A',a));g.addColorStop(1,col.replace('A',0));ctx.fillStyle=g;ctx.fillRect(x-r,y-r,2*r,2*r);}
+function card(x,y,w,h,{r=18,fill=C.card,stroke=C.cardB,alpha=1,shadow=true}={}){
+  ctx.save();ctx.globalAlpha*=alpha;if(shadow){ctx.shadowColor='rgba(0,0,0,0.55)';ctx.shadowBlur=40;ctx.shadowOffsetY=16;}
+  rr(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();ctx.shadowColor='transparent';ctx.lineWidth=1.5;ctx.strokeStyle=stroke;ctx.stroke();ctx.restore();}
+const fmtUsd=(v,d=2)=>{if(v>=1e9)return '$'+(v/1e9).toFixed(d)+'B';if(v>=1e6)return '$'+(v/1e6).toFixed(d)+'M';if(v>=1e3)return '$'+(v/1e3).toFixed(d===2?1:d)+'K';return '$'+v.toFixed(2)};
+const fmtPct=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
+const fmtInt=v=>Math.round(v).toLocaleString('en-US');
+function fmtPrice(p){if(p>=1)return '$'+p.toFixed(4);if(p>=0.01)return '$'+p.toFixed(4);const s=p.toFixed(12);const m=s.match(/^0\.(0*)(\d{4})/);return '$0.'+m[1]+m[2];}
+function chip(x,y,label,{col=C.pur2,size=20,alpha=1,fill='rgba(139,92,246,0.14)'}={}){const w=tw(label,size,F.b,600)+size*1.3;ctx.save();ctx.globalAlpha*=alpha;rr(x,y,w,size*1.9,size*0.95);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=col;ctx.globalAlpha*=0.6;ctx.lineWidth=1.2;ctx.stroke();ctx.restore();txt(label,x+size*0.65,y+size*1.3,{size,weight:600,color:col,alpha});return w;}
+// images
+const IMG={};['icon','shot_1','shot_2','shot_3','shot_4'].forEach(k=>{const i=new Image();i.src=k+'.png';IMG[k]=i;});
+// grain
+const grain=document.createElement('canvas');grain.width=512;grain.height=512;{const g=grain.getContext('2d');const id=g.createImageData(512,512);let s=12345;for(let i=0;i<id.data.length;i+=4){s=(s*1103515245+12345)&0x7fffffff;const v=(s>>16)&255;id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=255;}g.putImageData(id,0,0);}
+// seeded rand
+function R(seed){let s=seed*9301+49297;return()=>{s=(s*9301+49297)%233280;return s/233280;}}
+
+// ---------- background ----------
+function background(t){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0c0a1c');g.addColorStop(1,'#06050d');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // drifting glows
+  glow(W*0.18+Math.sin(t*0.11)*120,H*0.25+Math.cos(t*0.09)*80,820,'rgba(139,92,246,A)',0.22);
+  glow(W*0.86+Math.cos(t*0.07)*140,H*0.8+Math.sin(t*0.1)*60,760,'rgba(52,227,154,A)',0.10);
+  // perspective grid floor
+  ctx.save();ctx.strokeStyle='rgba(139,92,246,0.10)';ctx.lineWidth=1;
+  const hy=H*0.62, off=(t*40)%80;
+  for(let i=-24;i<=24;i++){ctx.beginPath();ctx.moveTo(W/2+i*40,hy);ctx.lineTo(W/2+i*260,H+40);ctx.stroke();}
+  for(let j=0;j<12;j++){const z=(j*80+off)/960;const y=hy+(H-hy)*Math.pow(z,1.8);ctx.globalAlpha=z;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.restore();
+}
+function post(t){
+  // vignette
+  const v=ctx.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.95);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,0.62)');ctx.fillStyle=v;ctx.fillRect(0,0,W,H);
+  // grain
+  ctx.save();ctx.globalAlpha=0.035;ctx.globalCompositeOperation='overlay';const ox=(Math.floor(t*24)*137)%512,oy=(Math.floor(t*24)*311)%512;
+  ctx.translate(-ox,-oy);ctx.fillStyle=ctx.createPattern(grain,'repeat');ctx.fillRect(0,0,W+512,H+512);ctx.restore();
+  // letterbox hairlines
+}
+function sourceTag(s,alpha=1){txt(s,60,H-40,{size:17,font:F.m,weight:400,color:C.faint,alpha});}
+function kicker(s,x,y,alpha=1,col=C.grn){ctx.save();ctx.globalAlpha*=alpha;ctx.fillStyle=col;ctx.fillRect(x,y-15,28,3);ctx.restore();txt(s,x+42,y-6,{size:20,font:F.m,weight:600,color:col,ls:3,alpha});}
+function headline(s,x,y,size,lt,delay=0,{color=C.ink,align='left',weight=700}={}){
+  // word-by-word rise
+  const words=s.split(' ');let cx=x;const total=tw(s,size,F.h,weight);if(align==='center')cx=x-total/2;
+  words.forEach((w,i)=>{const p=eo(prog(lt,delay+i*0.07,0.6));txt(w,cx,y+(1-p)*30,{size,font:F.h,weight,color,alpha:p});cx+=tw(w+' ',size,F.h,weight);});
+}
+const SNAP='Data: GeckoTerminal · snapshot '+D.snapshot;
+
+// ================= SCENES =================
+const scenes={};
+scenes.hook=(lt,dur)=>{
+  const rows=D.newpools.slice().reverse(); // oldest first
+  const t0=new Date(rows[0].created).getTime();
+  const x=860,y0=150,rh=40;
+  card(x-30,y0-70,1010,900,{alpha:eo(prog(lt,0,0.8))});
+  txt('NEW POOLS  ·  ALL NETWORKS',x,y0-22,{size:18,font:F.m,weight:600,color:C.dim,ls:2,alpha:eo(prog(lt,0.2,0.6))});
+  txt('CREATED (UTC)',x+930,y0-22,{size:18,font:F.m,weight:600,color:C.dim,ls:2,align:'right',alpha:eo(prog(lt,0.2,0.6))});
+  const shown=Math.floor(clamp((lt-0.6)/4.8)*rows.length+0.0001);
+  for(let i=0;i<rows.length;i++){
+    const appear=0.6+i*(4.8/rows.length); const p=eo(prog(lt,appear,0.45)); if(p<=0)continue;
+    const r=rows[rows.length-1-i]; // newest at top as they arrive -> show in arrival order bottom-up
+    const row=rows[i]; const yy=y0+ (rows.length-1-i)*rh*0+ (i)*rh;
+    const ry=y0+20+i*rh - 0;
+    ctx.save();ctx.globalAlpha=p;
+    if(i===Math.min(shown,rows.length)-1){rr(x-14,ry-28,960,38,8);ctx.fillStyle='rgba(52,227,154,0.10)';ctx.fill();}
+    txt(row.name,x+(1-p)*-30,ry,{size:22,font:F.b,weight:600,color:C.ink});
+    txt(row.net+' · '+row.dex,x+330,ry,{size:19,font:F.b,weight:400,color:C.dim});
+    txt(row.created.slice(11,19),x+930,ry,{size:20,font:F.m,weight:400,color:C.grn,align:'right'});
+    ctx.restore();
+  }
+  // counter
+  const n=Math.max(0,Math.min(rows.length,shown));
+  const secs=n>0?Math.round((new Date(rows[n-1].created).getTime()-t0)/1000):0;
+  kicker('LIVE ON-CHAIN · 22 NOV 2026',110,330,eo(prog(lt,0.3,0.6)));
+  txt(String(n).padStart(2,'0'),110,520,{size:190,font:F.h,weight:700,color:C.ink,alpha:eo(prog(lt,0.4,0.6))});
+  txt('new pools',110+tw(String(n).padStart(2,'0'),190,F.h,700)+24,520,{size:48,font:F.h,weight:500,color:C.dim,alpha:eo(prog(lt,0.4,0.6))});
+  txt('in '+secs+' seconds',110,600,{size:56,font:F.h,weight:500,color:C.grn,alpha:eo(prog(lt,0.8,0.6))});
+  txt('Each one, a new chart.',110,700,{size:34,font:F.b,weight:500,color:C.dim,alpha:eo(prog(lt,4.2,0.8))});
+  sourceTag('Source: GeckoTerminal · New Pools feed · 22 Nov 2026, 02:10:16–02:10:44 UTC',eo(prog(lt,0.5,1)));
+};
+scenes.problem=(lt,dur)=>{
+  // abstract chaos of unlabeled lines (artistic, not data)
+  const r=R(4);ctx.save();
+  for(let k=0;k<26;k++){
+    const cx=r()*W, cy=r()*H, w=260+r()*260, h=90+r()*80, ph=r()*10, a=0.15+0.35*r();
+    const appear=prog(lt,k*0.06,0.3);ctx.globalAlpha=a*appear*(1-prog(lt,dur-0.4,0.4)*0.3);
+    ctx.strokeStyle=r()>0.5?C.grn:C.red;ctx.lineWidth=2;ctx.beginPath();
+    let yv=0;for(let i=0;i<=40;i++){yv+=Math.sin(i*0.7+ph+lt*3)*0.6+(Math.sin(i*1.9+ph*2)*0.8);const px=cx-w/2+w*i/40,py=cy+yv*h/12;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();ctx.fillStyle='rgba(7,6,15,0.55)';ctx.fillRect(0,H/2-130,W,260);ctx.restore();
+  const jit=lt<1.2?Math.sin(lt*90)*4*(1-lt/1.2):0;
+  headline('Random charts.',W/2+jit,H/2-10,92,lt,0.1,{align:'center'});
+  headline('Random research.',W/2,H/2+95,92,lt,0.7,{align:'center',color:C.red});
+};
+scenes.platform=(lt,dur)=>{
+  // logo reveal
+  const p=eo(prog(lt,0,1.2)); const lx=W/2, ly=330;
+  glow(lx,ly,420,'rgba(139,92,246,A)',0.35*p);
+  if(IMG.icon.complete){ctx.save();ctx.globalAlpha=p;const s=150*(0.85+0.15*p);ctx.beginPath();rr(lx-s/2,ly-s/2-90,s,s,s*0.24);ctx.clip();ctx.drawImage(IMG.icon,lx-s/2,ly-s/2-90,s,s);ctx.restore();}
+  const name='GeckoTerminal';const nw=tw(name,104,F.h,700);
+  ctx.save();ctx.beginPath();ctx.rect(lx-nw/2-10,ly+20,(nw+20)*eio(prog(lt,0.4,1.1)),140);ctx.clip();
+  txt('Gecko',lx-nw/2,ly+120,{size:104,font:F.h,weight:700,color:C.ink});txt('Terminal',lx-nw/2+tw('Gecko',104,F.h,700),ly+120,{size:104,font:F.h,weight:700,color:C.pur2});ctx.restore();
+  txt('Real-time on-chain market tracking  ·  built by the team behind CoinGecko',lx,ly+185,{size:28,font:F.b,weight:500,color:C.dim,align:'center',alpha:eo(prog(lt,1.4,0.8))});
+  // feature chips
+  const feats=['Token prices','Liquidity pools','Trades','Price charts','Trending pools','New pools','Networks & DEXes','Watchlists'];
+  let total=0;const ws=feats.map(f=>tw(f,22,F.b,600)+22*1.3);total=ws.reduce((a,b)=>a+b,0)+14*(feats.length-1);
+  let cx=W/2-total/2;feats.forEach((f,i)=>{chip(cx,ly+235,f,{size:22,alpha:eo(prog(lt,2.4+i*0.12,0.5)),col:f==='Watchlists'?C.grn:C.pur2,fill:f==='Watchlists'?'rgba(52,227,154,0.12)':'rgba(139,92,246,0.14)'});cx+=ws[i]+14;});
+  // counters
+  const stats=[[50,'M+','token prices'],[200,'+','networks'],[2000,'+','DEXes']];
+  stats.forEach((s,i)=>{const a=eo(prog(lt,5.0+i*0.35,0.7));const cxs=W/2+(i-1)*470;const v=Math.round(s[0]*eio(prog(lt,5.0+i*0.35,1.6)));
+    card(cxs-200,ly+345,400,190,{alpha:a});
+    txt(fmtInt(v)+s[1],cxs,ly+455,{size:84,font:F.h,weight:700,color:i===0?C.grn:C.ink,align:'center',alpha:a});
+    txt(s[2].toUpperCase(),cxs,ly+500,{size:20,font:F.m,weight:600,color:C.dim,align:'center',ls:3,alpha:a});});
+  sourceTag('Coverage figures as provided in the campaign brief. GeckoTerminal public API listed 222 networks on 22 Nov 2026.',eo(prog(lt,5.5,1)));
+};
+// scatter of trending pools
+function sx(l){return 250+ (Math.log10(l)-4)/(Math.log10(3e7)-4)*1400;}
+function sy(v){return 900- (Math.log10(v)-4.5)/(Math.log10(6e7)-4.5)*700;}
+scenes.method=(lt,dur)=>{
+  kicker('STEP 1 · COMPARE BEFORE YOU CHOOSE',110,110,eo(prog(lt,0,0.6)));
+  headline('20 trending pools, compared.',110,175,58,lt,0.1);
+  const a=eo(prog(lt,0.3,0.8));
+  ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=C.line;ctx.lineWidth=1;
+  [1e4,1e5,1e6,1e7].forEach(l=>{ctx.beginPath();ctx.moveTo(sx(l),200);ctx.lineTo(sx(l),900);ctx.stroke();txt(fmtUsd(l,0),sx(l),935,{size:18,font:F.m,color:C.faint,align:'center'});});
+  [1e5,1e6,1e7].forEach(v=>{ctx.beginPath();ctx.moveTo(250,sy(v));ctx.lineTo(1650,sy(v));ctx.stroke();txt(fmtUsd(v,0),235,sy(v)+6,{size:18,font:F.m,color:C.faint,align:'right'});});
+  // turnover diagonals
+  [[1,'1× liquidity'],[10,'10×']].forEach(([k,l])=>{ctx.setLineDash([6,8]);ctx.strokeStyle='rgba(255,200,97,0.35)';ctx.beginPath();const x0=sx(1e4),x1=sx(3e7);ctx.moveTo(x0,sy(1e4*k));ctx.lineTo(x1,sy(3e7*k));ctx.stroke();ctx.setLineDash([]);});
+  ctx.restore();
+  txt('Pool liquidity →',1650,970,{size:20,font:F.b,weight:600,color:C.dim,align:'right',alpha:a});
+  ctx.save();ctx.translate(165,560);ctx.rotate(-Math.PI/2);txt('24h volume →',0,0,{size:20,font:F.b,weight:600,color:C.dim,align:'center',alpha:a});ctx.restore();
+  txt('1× turnover',sx(2e7)-10,sy(2e7)+28,{size:17,font:F.m,color:C.amb,align:'right',alpha:a*0.8});
+  txt('10× turnover',sx(1.6e4)+10,sy(1.6e5)-12,{size:17,font:F.m,color:C.amb,align:'right',alpha:a*0.8});
+  const hiC=prog(lt,2.6,0.6);
+  D.trending.forEach((p,i)=>{
+    const pa=eback(prog(lt,0.6+i*0.06,0.5));if(pa<=0)return;
+    const x=sx(p.liq),y=sy(p.vol);const isC=p.name.startsWith('CLAUDIA'),isA=p.name.startsWith('AKE'),isP=p.name.startsWith('PUMP');
+    const dimmed=hiC>0&&!isC?1-0.55*hiC:1;
+    ctx.save();ctx.globalAlpha=dimmed;ctx.beginPath();ctx.arc(x,y,9*pa,0,7);ctx.fillStyle=isC?C.grn:(isA?C.amb:C.pur2);ctx.fill();ctx.restore();
+  });
+  // callouts
+  const ake=D.trending.find(p=>p.name.startsWith('AKE')),pump=D.trending.find(p=>p.name.startsWith('PUMP')),cl=D.trending.find(p=>p.name.startsWith('CLAUDIA'));
+  const ca=eo(prog(lt,1.6,0.6));
+  txt('AKE / WBNB — volume '+(ake.vol/ake.liq).toFixed(1)+'× liquidity: treat with caution',sx(ake.liq)+22,sy(ake.vol)+7,{size:20,weight:600,color:C.amb,alpha:ca*(1-0.5*hiC)});
+  txt('PUMP / USDC — deepest liquidity',sx(pump.liq)-20,sy(pump.vol)+40,{size:20,weight:600,color:C.pur2,align:'right',alpha:ca*(1-0.5*hiC)});
+  if(hiC>0){const x=sx(cl.liq),y=sy(cl.vol);const pr=1+0.25*Math.sin(lt*5);ctx.save();ctx.strokeStyle=C.grn;ctx.lineWidth=3;ctx.globalAlpha=hiC;ctx.beginPath();ctx.arc(x,y,26*pr,0,7);ctx.stroke();ctx.restore();
+    glow(x,y,120,'rgba(52,227,154,A)',0.3*hiC);
+    card(x+50,y-110,420,92,{alpha:hiC});txt('SELECTED FOR STUDY',x+72,y-76,{size:17,font:F.m,weight:600,color:C.grn,ls:2,alpha:hiC});
+    txt('CLAUDIA / SOL · PumpSwap',x+72,y-40,{size:26,font:F.h,weight:700,color:C.ink,alpha:hiC});}
+  card(1690,230,190,300,{alpha:a});
+  [['Liquidity'],['Volume'],['Transactions'],['Pool age'],['Security']].forEach((k,i)=>{txt('✓ '+k[0],1712,280+i*52,{size:20,weight:600,color:i<4?C.ink:C.dim,alpha:eo(prog(lt,0.8+i*0.2,0.4))});});
+  sourceTag('Trending pools (24h), all networks · '+SNAP,a);
+};
+// candle chart helper
+function candles(list,x,y,w,h,lt,{start=0,drawP=1}={}){
+  const lo=Math.min(...list.map(r=>r[3])),hi=Math.max(...list.map(r=>r[2]));
+  const Y=v=>y+h-(v-lo)/(hi-lo)*h;const cw=w/list.length;
+  const n=Math.floor(list.length*drawP);
+  for(let i=0;i<n;i++){const r=list[i];const up=r[4]>=r[1];const cx=x+i*cw+cw/2;ctx.strokeStyle=up?C.grn:C.red;ctx.fillStyle=up?C.grn:C.red;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(cx,Y(r[2]));ctx.lineTo(cx,Y(r[3]));ctx.stroke();const top=Y(Math.max(r[1],r[4])),bot=Y(Math.min(r[1],r[4]));ctx.fillRect(cx-cw*0.32,top,cw*0.64,Math.max(1.5,bot-top));}
+  return {Y,lo,hi,cw};
+}
+scenes.subject=(lt,dur)=>{
+  const P=D.pool;const a=eo(prog(lt,0,0.7));
+  kicker('STEP 2 · READ PRICE ACROSS TIMEFRAMES',110,110,a);
+  // header
+  card(100,140,1720,150,{alpha:a});
+  txt('CLAUDIA',140,215,{size:64,font:F.h,weight:700,color:C.ink,alpha:a});
+  txt('/ SOL',140+tw('CLAUDIA',64,F.h,700)+16,215,{size:44,font:F.h,weight:500,color:C.dim,alpha:a});
+  let cx=140;['Solana','PumpSwap','Pool created 7 Oct 2026 · 46 days','Liquidity locked: '+P.locked+'%'].forEach((s,i)=>{cx+=chip(cx,238,s,{size:17,alpha:eo(prog(lt,0.3+i*0.12,0.5))})+12;});
+  txt(fmtPrice(P.price),1780,212,{size:58,font:F.h,weight:700,color:C.ink,align:'right',alpha:a});
+  txt('price (USD) at snapshot',1780,252,{size:18,font:F.m,color:C.faint,align:'right',alpha:a});
+  // timeframe tiles
+  const tf=[['5M',P.ch.m5],['1H',P.ch.h1],['6H',P.ch.h6],['24H',P.ch.h24]];
+  tf.forEach(([k,v],i)=>{const pa=eback(prog(lt,0.9+i*0.15,0.6));const x=100+i*230,y=330;const hl=(k==='24H'&&lt>2.4&&lt<5.4)||(k==='6H'&&lt>4.6);
+    card(x,y,210,120,{alpha:clamp(pa),stroke:hl?(v>=0?C.grn:C.red):C.cardB});
+    txt(k,x+24,y+42,{size:20,font:F.m,weight:600,color:C.dim,alpha:clamp(pa)});
+    txt(fmtPct(v),x+24,y+95,{size:40,font:F.h,weight:700,color:v>=0?C.grn:C.red,alpha:clamp(pa)});});
+  // chart 72h hourly
+  const list=D.ohlcv_1h; const cx0=100,cy0=500,cw=1720,ch=430;
+  card(cx0,cy0-20,cw,ch+80,{alpha:a,fill:'rgba(16,13,34,0.85)'});
+  const dp=eio(prog(lt,0.8,2.6));
+  const g=candles(list,cx0+30,cy0+20,cw-200,ch-30,lt,{drawP:dp});
+  // axis labels
+  [g.lo,(g.lo+g.hi)/2,g.hi].forEach(v=>txt(fmtPrice(v),cx0+cw-20,g.Y(v)+6,{size:16,font:F.m,color:C.faint,align:'right',alpha:a}));
+  // 24h & 6h brackets
+  const n=list.length, colw=(cw-200)/n, X=i=>cx0+30+i*colw;
+  const b24=eo(prog(lt,2.4,0.7)), b6=eo(prog(lt,4.6,0.7));
+  ctx.save();ctx.globalAlpha=b24*0.16;ctx.fillStyle=C.grn;ctx.fillRect(X(n-24),cy0,colw*24,ch);ctx.restore();
+  txt('Last 24h  '+fmtPct(P.ch.h24),X(n-24)+10,cy0+ch+40,{size:20,font:F.m,weight:600,color:C.grn,alpha:b24});
+  ctx.save();ctx.globalAlpha=b6*0.22;ctx.fillStyle=C.red;ctx.fillRect(X(n-6),cy0,colw*6,ch);ctx.restore();
+  txt('Last 6h  '+fmtPct(P.ch.h6),X(n)-4,cy0+16,{size:20,font:F.m,weight:600,color:C.red,align:'right',alpha:b6});
+  txt('1H candles · 72h',cx0+30,cy0+18,{size:16,font:F.m,color:C.faint,alpha:a});
+  if(lt>6.2){const q=eo(prog(lt,6.2,0.6));card(W/2-330,560,660,110,{alpha:q,fill:'rgba(12,10,28,0.92)',stroke:C.pur});txt('Same pool. Two stories.',W/2,632,{size:48,font:F.h,weight:700,color:C.ink,align:'center',alpha:q});}
+  sourceTag(SNAP+' · Observation, not a forecast',a);
+};
+scenes.turnover=(lt,dur)=>{
+  const P=D.pool;const a=eo(prog(lt,0,0.7));
+  kicker('STEP 3 · VOLUME IN CONTEXT OF LIQUIDITY',110,110,a);
+  headline('How much did the pool really move?',110,175,54,lt,0.1);
+  const maxV=P.vol.h24; const bw=1100, x0=420;
+  const pv=eio(prog(lt,0.6,1.6)), pl=eio(prog(lt,1.4,1.2));
+  txt('24h VOLUME',110,330,{size:22,font:F.m,weight:600,color:C.dim,ls:2,alpha:a});
+  rr(x0,290,bw*pv,64,10);ctx.fillStyle=C.pur;ctx.globalAlpha=0.9*a;ctx.fill();ctx.globalAlpha=1;
+  txt(fmtUsd(P.vol.h24*pv),x0+bw*pv+20,337,{size:44,font:F.h,weight:700,color:C.ink,alpha:a});
+  txt('LIQUIDITY',110,450,{size:22,font:F.m,weight:600,color:C.dim,ls:2,alpha:a});
+  rr(x0,410,bw*(P.liq/maxV)*pl,64,10);ctx.fillStyle=C.grn;ctx.globalAlpha=0.9*a;ctx.fill();ctx.globalAlpha=1;
+  txt(fmtUsd(P.liq*pl),x0+bw*(P.liq/maxV)*pl+20,457,{size:44,font:F.h,weight:700,color:C.ink,alpha:a});
+  // ratio
+  const r=eo(prog(lt,2.8,0.8));const rv=(P.vol.h24/P.liq);
+  card(110,540,560,260,{alpha:r});
+  txt((rv*eio(prog(lt,2.8,1.4))).toFixed(1)+'×',150,690,{size:130,font:F.h,weight:700,color:C.amb,alpha:r});
+  txt('24h volume ÷ liquidity',150,760,{size:24,weight:500,color:C.dim,alpha:r});
+  // hourly volume bars
+  const L=D.ohlcv_1h.slice(-24);const mv=Math.max(...L.map(c=>c[5]));const hx=740,hy=960,hw=1080,hh=230;
+  const hb=prog(lt,3.2,1.6);
+  L.forEach((c,i)=>{const p=clamp(hb*24-i);const h=c[5]/mv*hh*eo(p);ctx.fillStyle=c[4]>=c[1]?'rgba(52,227,154,0.75)':'rgba(255,95,126,0.75)';ctx.fillRect(hx+i*(hw/24)+4,hy-h,hw/24-8,h);});
+  txt('Hourly volume · last 24h',hx,hy+30,{size:18,font:F.m,color:C.faint,alpha:eo(hb)});
+  // interpretation
+  const q=eo(prog(lt,5.6,0.7));
+  card(740,520,1080,150,{alpha:q,stroke:C.amb});
+  txt('READING',770,566,{size:17,font:F.m,weight:600,color:C.amb,ls:2,alpha:q});
+  txt('Heavy turnover means intense trading — not proof of demand.',770,610,{size:28,weight:600,color:C.ink,alpha:q});
+  txt('Check direction, wallets and liquidity depth before drawing conclusions.',770,648,{size:22,weight:400,color:C.dim,alpha:q});
+  sourceTag(SNAP,a);
+};
+function split(x,y,w,l,r,lt,lab,lcol,rcol,llab,rlab,delay){
+  const p=eio(prog(lt,delay,1.2));const tot=l+r;const lw=w*(l/tot);
+  txt(lab,x,y-26,{size:22,font:F.m,weight:600,color:C.dim,ls:2,alpha:eo(prog(lt,delay-0.2,0.5))});
+  ctx.save();rr(x,y,w,56,12);ctx.clip();ctx.fillStyle='rgba(255,255,255,0.05)';ctx.fillRect(x,y,w,56);
+  ctx.fillStyle=lcol;ctx.fillRect(x,y,lw*p,56);ctx.fillStyle=rcol;ctx.fillRect(x+w-(w-lw)*p,y,(w-lw)*p,56);ctx.restore();
+  ctx.fillStyle=C.bg0;ctx.fillRect(x+lw-2,y-6,4,68*p);
+  const a=eo(prog(lt,delay+0.8,0.6));
+  txt(fmtInt(l*eio(prog(lt,delay,1.2)))+'  '+llab,x,y+108,{size:36,font:F.h,weight:700,color:lcol,alpha:a});
+  txt((100*l/tot).toFixed(1)+'%',x,y+146,{size:20,font:F.m,color:C.dim,alpha:a});
+  txt(rlab+'  '+fmtInt(r*eio(prog(lt,delay,1.2))),x+w,y+108,{size:36,font:F.h,weight:700,color:rcol,align:'right',alpha:a});
+  txt((100*r/tot).toFixed(1)+'%',x+w,y+146,{size:20,font:F.m,color:C.dim,align:'right',alpha:a});
+}
+scenes.wallets=(lt,dur)=>{
+  const T=D.pool.tx.h24;const a=eo(prog(lt,0,0.7));
+  kicker('STEP 4 · PARTICIPATION, NOT JUST CLICKS',110,110,a);
+  headline('Who is actually trading?',110,175,54,lt,0.1);
+  split(160,330,1600,T.buys,T.sells,lt,'24h TRANSACTIONS',C.grn,C.red,'buys','sells',0.5);
+  split(160,640,1600,T.buyers,T.sellers,lt,'24h UNIQUE WALLETS',C.grn,C.red,'buyers','sellers',2.6);
+  const q=eo(prog(lt,4.6,0.7));
+  card(W/2-360,880,720,96,{alpha:q,stroke:C.pur});
+  txt('Count wallets, not clicks.',W/2,943,{size:42,font:F.h,weight:700,color:C.ink,align:'center',alpha:q});
+  txt(fmtInt(T.unique_traders)+' unique traders in 24h',1760,240,{size:22,font:F.m,weight:600,color:C.pur2,align:'right',alpha:eo(prog(lt,1.4,0.6))});
+  sourceTag(SNAP,a);
+};
+scenes.safety=(lt,dur)=>{
+  const I=D.info;const a=eo(prog(lt,0,0.7));
+  kicker('STEP 5 · CHECK THE AVAILABLE SAFETY SIGNALS',110,110,a);
+  headline('Context — not a guarantee.',110,175,54,lt,0.1);
+  // gauge
+  const gx=480,gy=620,gr=230;const p=eio(prog(lt,0.6,1.8));
+  ctx.save();ctx.lineCap='round';ctx.lineWidth=26;ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.beginPath();ctx.arc(gx,gy,gr,Math.PI*0.75,Math.PI*2.25);ctx.stroke();
+  const gg=ctx.createLinearGradient(gx-gr,0,gx+gr,0);gg.addColorStop(0,C.pur);gg.addColorStop(1,C.grn);ctx.strokeStyle=gg;ctx.beginPath();ctx.arc(gx,gy,gr,Math.PI*0.75,Math.PI*0.75+Math.PI*1.5*(I.gt/100)*p);ctx.stroke();ctx.restore();
+  txt((I.gt*p).toFixed(1),gx,gy+30,{size:120,font:F.h,weight:700,color:C.ink,align:'center',alpha:a});
+  txt('GT SCORE  /  100',gx,gy+80,{size:22,font:F.m,weight:600,color:C.dim,align:'center',ls:2,alpha:a});
+  // sub scores
+  const det=[['Pool',I.det.pool],['Transactions',I.det.transaction],['Creation',I.det.creation],['Token info',I.det.info],['Holders',I.det.holders]];
+  det.forEach(([k,v],i)=>{const q=eo(prog(lt,1.0+i*0.15,0.5));const y=380+i*62;txt(k,880,y,{size:24,weight:600,color:C.ink,alpha:q});
+    rr(1120,y-20,300,14,7);ctx.fillStyle='rgba(255,255,255,0.07)';ctx.globalAlpha=q;ctx.fill();rr(1120,y-20,300*(v/100)*eio(prog(lt,1.0+i*0.15,1)),14,7);ctx.fillStyle=C.pur2;ctx.fill();ctx.globalAlpha=1;
+    txt(v.toFixed(1),1440,y,{size:22,font:F.m,color:C.dim,alpha:q});});
+  // checks
+  const checks=[['Mint authority','Disabled',C.grn],['Freeze authority','Disabled',C.grn],['Holders',fmtInt(I.holders.count),C.ink],['Top 10 holders',parseFloat(I.holders.distribution_percentage.top_10).toFixed(1)+'%',C.ink]];
+  checks.forEach(([k,v,c],i)=>{const q=eo(prog(lt,2.6+i*0.3,0.5));const x=880+(i%2)*500,y=720+Math.floor(i/2)*120;card(x,y,470,96,{alpha:q});
+    txt(k.toUpperCase(),x+24,y+36,{size:16,font:F.m,weight:600,color:C.dim,ls:2,alpha:q});txt(v,x+24,y+78,{size:32,font:F.h,weight:700,color:c,alpha:q});});
+  sourceTag('Token info & GT Score: GeckoTerminal · '+D.snapshot+' · Holder data last updated 21 Nov 2026',a);
+};
+scenes.watchlist=(lt,dur)=>{
+  const a=eo(prog(lt,0,0.7));
+  // phase A: snapshot -> star (0-3s)
+  const A=1-eo(prog(lt,2.6,0.6));
+  if(A>0){ctx.save();ctx.globalAlpha=A;
+    const s=1-0.25*eio(prog(lt,1.4,1.2));card(W/2-420*s,H/2-110*s,840*s,220*s,{alpha:1});
+    txt('One look is a snapshot.',W/2,H/2-10,{size:56*s,font:F.h,weight:700,color:C.ink,align:'center'});
+    txt('Research is a routine.',W/2,H/2+60*s,{size:40*s,font:F.h,weight:500,color:C.grn,align:'center',alpha:eo(prog(lt,1.3,0.6))});
+    ctx.restore();}
+  if(lt<2.6)return;
+  const b=eo(prog(lt,2.6,0.8));
+  kicker('YOUR WATCHLIST · YOUR DAILY ON-CHAIN RESEARCH DASHBOARD',110,110,b);
+  // star add animation
+  const sp=eback(prog(lt,2.9,0.6));
+  ctx.save();ctx.translate(140,180);ctx.scale(sp,sp);ctx.fillStyle=C.amb;ctx.beginPath();for(let i=0;i<10;i++){const r=i%2?11:26,an=-Math.PI/2+i*Math.PI/5;ctx.lineTo(Math.cos(an)*r,Math.sin(an)*r);}ctx.fill();ctx.restore();
+  txt('CLAUDIA / SOL added to Watchlist',180,192,{size:30,font:F.h,weight:700,color:C.ink,alpha:eo(prog(lt,3.1,0.5))});
+  // lists
+  const tr=n=>{const p=D.trending.find(p=>p.name.startsWith(n));return n==='CLAUDIA'?Object.assign({},p,{ch24:D.pool.ch.h24,vol:D.pool.vol.h24,liq:D.pool.liq}):p;};
+  const lists=[['AI narrative',[tr('CLAUDIA'),tr('AKE')]],['Solana ecosystem',[tr('PUMP'),tr('CLAUDIA')]],['Revisit tomorrow',[tr('EVAA'),tr('NVDAc')]]];
+  lists.forEach(([name,items],li)=>{const q=eo(prog(lt,3.6+li*0.5,0.7));const x=110+li*575,y=250+(1-q)*40;
+    card(x,y,545,330,{alpha:q});
+    txt(name,x+28,y+52,{size:28,font:F.h,weight:700,color:li===0?C.grn:C.ink,alpha:q});txt(items.length+' pools',x+517,y+52,{size:18,font:F.m,color:C.faint,align:'right',alpha:q});
+    ['POOL','24H','VOL / LIQ'].forEach((h,k)=>txt(h,x+28+[0,250,385][k],y+100,{size:15,font:F.m,weight:600,color:C.faint,ls:1.5,alpha:q}));
+    items.forEach((p,k)=>{const yy=y+150+k*80;const qq=eo(prog(lt,3.9+li*0.5+k*0.15,0.5));
+      ctx.save();ctx.globalAlpha=qq*0.5;ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(x+28,yy-40);ctx.lineTo(x+517,yy-40);ctx.stroke();ctx.restore();
+      txt(p.name.replace(/ \d.*%$/,'').replace(/ \d+\.\d+%$/,''),x+28,yy,{size:24,weight:600,color:C.ink,alpha:qq});
+      txt(p.dex+' · '+p.net,x+28,yy+28,{size:16,weight:400,color:C.dim,alpha:qq});
+      txt(fmtPct(p.ch24),x+250,yy,{size:22,font:F.m,weight:600,color:p.ch24>=0?C.grn:C.red,alpha:qq});
+      const r=p.vol/p.liq;txt(r.toFixed(1)+'×',x+385,yy,{size:22,font:F.m,weight:600,color:r>10?C.amb:C.ink,alpha:qq});});
+  });
+  txt('Illustrative research layout built from the '+D.snapshot+' snapshot — not a screenshot of the GeckoTerminal Watchlist page.',110,612,{size:16,font:F.m,color:C.faint,alpha:eo(prog(lt,4,0.6))});
+  // daily routine
+  const steps=['Price across timeframes','Volume vs liquidity','Buyers vs sellers','Safety signals','What changed\nsince yesterday?'];
+  const q0=eo(prog(lt,6.4,0.6));txt('THE DAILY ROUTINE',110,690,{size:20,font:F.m,weight:600,color:C.grn,ls:3,alpha:q0});
+  steps.forEach((s,i)=>{const q=eo(prog(lt,6.6+i*0.35,0.5));const x=110+i*345,y=720;card(x,y,325,120,{alpha:q,stroke:i===4?C.grn:C.cardB});
+    txt('0'+(i+1),x+22,y+44,{size:20,font:F.m,weight:600,color:i===4?C.grn:C.pur2,alpha:q});s.split('\n').forEach((l,j,arr)=>txt(l,x+22,arr.length>1?y+78+j*27:y+88,{size:arr.length>1?21:23,weight:600,color:C.ink,alpha:q}));});
+  // tagline
+  const tq=eo(prog(lt,9.6,0.8));
+  txt('MY WATCHLIST.  MY MARKETS.  MY RESEARCH.',W/2,960,{size:46,font:F.h,weight:700,color:C.ink,align:'center',ls:4,alpha:tq});
+};
+scenes.mobile=(lt,dur)=>{
+  const a=eo(prog(lt,0,0.8));
+  kicker('ON THE GO · GECKOTERMINAL APP',110,110,a);
+  headline('Your markets, one tap away.',110,175,54,lt,0.1);
+  const shots=['shot_1','shot_2','shot_3','shot_4'];
+  shots.forEach((k,i)=>{const im=IMG[k];if(!im.complete)return;const q=eo(prog(lt,0.3+i*0.18,0.9));
+    const w=330,h=w*1920/1080;const x=W/2+(i-1.5)*380-w/2,y=255+(1-q)*80+Math.sin(lt*1.2+i)*6;
+    ctx.save();ctx.globalAlpha=q;ctx.shadowColor='rgba(139,92,246,0.45)';ctx.shadowBlur=60;rr(x,y,w,h,26);ctx.fillStyle='#000';ctx.fill();ctx.shadowColor='transparent';ctx.clip();ctx.drawImage(im,x,y,w,h);ctx.restore();
+    ctx.save();ctx.globalAlpha=q*0.7;rr(x,y,w,h,26);ctx.strokeStyle='rgba(182,155,255,0.5)';ctx.lineWidth=2;ctx.stroke();ctx.restore();});
+  sourceTag('Images: official GeckoTerminal app screenshots (Google Play listing). In-image figures are store illustrations, not this video’s snapshot.',a);
+};
+scenes.cta=(lt,dur)=>{
+  const p1=eo(prog(lt,0.1,0.7)),p2=eo(prog(lt,1.9,0.7));
+  const s=1+0.04*eio(prog(lt,0,dur));
+  ctx.save();ctx.translate(W/2,H/2);ctx.scale(s,s);ctx.translate(-W/2,-H/2);
+  // strikethrough random chart
+  txt('STOP CHECKING',W/2,H/2-120,{size:92,font:F.h,weight:700,color:C.ink,align:'center',alpha:p1,ls:2});
+  txt('RANDOM CHARTS.',W/2,H/2-20,{size:92,font:F.h,weight:700,color:C.red,align:'center',alpha:p1,ls:2});
+  const sw=tw('RANDOM CHARTS.',92,F.h,700,2);const sk=eio(prog(lt,1.1,0.5));ctx.fillStyle=C.ink;ctx.globalAlpha=p1;ctx.fillRect(W/2-sw/2,H/2-52,sw*sk,6);ctx.globalAlpha=1;
+  txt('BUILD YOUR OWN',W/2,H/2+110,{size:64,font:F.h,weight:500,color:C.dim,align:'center',alpha:p2,ls:3});
+  txt('ON-CHAIN RESEARCH ROUTINE.',W/2,H/2+190,{size:72,font:F.h,weight:700,color:C.grn,align:'center',alpha:p2,ls:2});
+  ctx.restore();
+};
+scenes.endcard=(lt,dur)=>{
+  const p=eo(prog(lt,0,1.0));glow(W/2,H/2-60,600,'rgba(139,92,246,A)',0.4*p);
+  if(IMG.icon.complete){const s=170;ctx.save();ctx.globalAlpha=p;rr(W/2-s/2,250,s,s,s*0.24);ctx.clip();ctx.drawImage(IMG.icon,W/2-s/2,250,s,s);ctx.restore();}
+  const nw=tw('GeckoTerminal',110,F.h,700);txt('Gecko',W/2-nw/2,560,{size:110,font:F.h,weight:700,color:C.ink,alpha:p});txt('Terminal',W/2-nw/2+tw('Gecko',110,F.h,700),560,{size:110,font:F.h,weight:700,color:C.pur2,alpha:p});
+  txt('MY WATCHLIST.  MY MARKETS.  MY RESEARCH.',W/2,650,{size:36,font:F.h,weight:700,color:C.grn,align:'center',ls:5,alpha:eo(prog(lt,0.6,0.8))});
+  const q=eo(prog(lt,1.2,0.8));
+  rr(W/2-260,700,520,70,35);ctx.globalAlpha=q;ctx.fillStyle='rgba(139,92,246,0.18)';ctx.fill();ctx.strokeStyle=C.pur;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  txt('www.geckoterminal.com',W/2,746,{size:32,font:F.m,weight:600,color:C.ink,align:'center',alpha:q});
+  txt('Create your Watchlist and start your daily research routine.',W/2,830,{size:26,weight:500,color:C.dim,align:'center',alpha:eo(prog(lt,1.6,0.8))});
+  txt('Educational demonstration only — not financial advice or a recommendation. Market data from GeckoTerminal, captured '+D.snapshot+'; on-chain data changes in real time.',W/2,1010,{size:17,font:F.b,weight:400,color:C.faint,align:'center',alpha:eo(prog(lt,1.0,1))});
+};
+
+// ---------- master render ----------
+const XF=0.55;
+window.renderFrame=function(t){
+  ctx.setTransform(SCALE,0,0,SCALE,0,0);ctx.globalAlpha=1;
+  background(t);
+  for(const s of TL.scenes){
+    if(t<s.start-0.001||t>s.end+XF)continue;
+    const lt=t-s.start,dur=s.end-s.start;
+    const fin=s.id==='hook'?clamp(t/0.8):clamp(lt/XF);
+    const fout=s.id==='endcard'?1-clamp((t-(TL.total-1.2))/1.2):1-clamp((t-s.end)/XF);
+    const alpha=fin*fout;if(alpha<=0)continue;
+    ctx.save();ctx.globalAlpha=alpha;
+    // slow camera push
+    const z=1+0.025*clamp(lt/(dur+XF));ctx.translate(W/2,H/2);ctx.scale(z,z);ctx.translate(-W/2,-H/2);
+    // slight rise on exit
+    if(fout<1)ctx.translate(0,-(1-fout)*30);
+    scenes[s.id](lt,dur);
+    ctx.restore();
+  }
+  post(t);
+};
+window.ready=Promise.all([...['400','500','700'].map(w=>document.fonts.load(w+" 40px 'Space Grotesk'")),...['400','500','600','700'].map(w=>document.fonts.load(w+" 40px 'Inter'")),...['400','600'].map(w=>document.fonts.load(w+" 40px 'JetBrains Mono'")),
+  ...Object.values(IMG).map(i=>i.decode().catch(()=>{}))]).then(()=>document.fonts.ready);
+</script></body></html>
