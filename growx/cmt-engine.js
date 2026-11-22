@@ -581,7 +581,7 @@ async function commentStep(job, s, now) {
       await notify("cmtcap", "GrowX reached your AI spend cap", `$${spent.toFixed(3)} spent today. Drafting starts again tomorrow.`);
       await tgSend("warn", `<b>AI spend cap reached</b>\n$${spent.toFixed(3)} of $${cap.toFixed(2)} today. Comment mode is off until tomorrow.`);
     }
-    if (await beginSwitch(job, s, now, "comment", `AI spend cap of $${cap.toFixed(2)} reached.`)) return park(job, s, job.restUntil, true);
+    if (await beginSwitch(job, s, now, "comment", `AI spend cap of $${cap.toFixed(2)} reached.`)) { await chrome.storage.local.remove(GX.CK.focus); return park(job, s, job.restUntil, true); }
     rest(job, "daily", at, `AI spend cap of $${cap.toFixed(2)} reached ($${spent.toFixed(3)} today). Comment mode continues at ${clock(at)}.`);
     return park(job, s, job.restUntil, false);
   }
@@ -593,7 +593,7 @@ async function commentStep(job, s, now) {
   if (!focus && await turnOver(job, s, now, "comment")) return park(job, s, job.restUntil, true);
   if (todayN >= s.cmtDaily) {
     const msg = `Daily goal of ${s.cmtDaily} replies reached.`;
-    if (await beginSwitch(job, s, now, "comment", msg)) return park(job, s, job.restUntil, true);
+    if (await beginSwitch(job, s, now, "comment", msg)) { await chrome.storage.local.remove(GX.CK.focus); return park(job, s, job.restUntil, true); }
     await notify("milestone", "GrowX finished commenting", `${todayN} replies posted today.`);
     await tgSend("run", `<b>Comment goal reached</b>\n${todayN} replies posted today.`);
     return finishJob(job, "done", `${msg} Stopped, as you set.${nextStartText(s)}`);
@@ -634,6 +634,9 @@ async function commentStep(job, s, now) {
 
   // ---- 7. pick the next row --------------------------------------------
   const draftOnly = s.cmtPublish === "draft";
+  // Started with links: once none of the rows that were there at the start is left open, those links are done -
+  // rows the watch list / targets / reply-back added later don't keep the focus (and its turn bypass) alive.
+  if (focus && !q.some((r) => GX.cmtOpen(r) && !(draftOnly && r.st === "ready") && (r.at || 0) <= (focus.at || 0))) return cmtFocusDone(job, s, now);
   const ready = cmtReadyRows(q);
   // Auto publishing: a draft that is waiting is posted before a new one is written.
   let row = !draftOnly ? ready[0] : null;
@@ -649,15 +652,7 @@ async function commentStep(job, s, now) {
       job.cmtEmptyNoted = true;
       await notify("cmtempty", "GrowX needs post links", "Paste a few post links on the Comment page and GrowX carries on.");
     }
-    if (focus) {
-      // Every link you started with is done: say so plainly. With a mode sequence the next mode takes over.
-      await chrome.storage.local.remove(GX.CK.focus);
-      const msg = `All your links are done - ${plural(job.cdone || 0, "reply")} posted this run.`;
-      await pushEvent("cmt", msg);
-      await notify("milestone", "GrowX: comment links done", msg);
-      if (GX.cycling(s) && await beginSwitch(job, s, now, "comment", msg, { turn: true })) return park(job, s, job.restUntil, true);
-      return finishJob(job, "done", msg);
-    }
+    if (focus) return cmtFocusDone(job, s, now);
     if (GX.cycling(s) && await beginSwitch(job, s, now, "comment", "Comment: nothing left in the queue.", { turn: true })) return park(job, s, job.restUntil, true);
     rest(job, "empty", until, live
       ? `Nothing to reply to right now. GrowX looks for new posts again at ${clock(until)}.`
@@ -671,6 +666,16 @@ async function commentStep(job, s, now) {
 
   // ---- 9. read the post, then write ------------------------------------
   return cmtPrepare(job, s, now, row, key);
+}
+
+// Every link you started with is done: say so plainly. With a mode sequence the next mode takes over.
+async function cmtFocusDone(job, s, now) {
+  await chrome.storage.local.remove(GX.CK.focus);
+  const msg = `All your links are done - ${plural(job.cdone || 0, "reply")} posted this run.`;
+  await pushEvent("cmt", msg);
+  await notify("milestone", "GrowX: comment links done", msg);
+  if (GX.cycling(s) && await beginSwitch(job, s, now, "comment", msg, { turn: true })) return park(job, s, job.restUntil, true);
+  return finishJob(job, "done", msg);
 }
 
 // Read one post, run the skip checks, write the reply.
@@ -1268,7 +1273,9 @@ async function cmtPreflight(text) {
   const open = cmtOpenRows(q).length;
   const me = await cmtMyHandle();
   const mine = me ? pasted.filter((it) => it.h && String(it.h).toLowerCase() === me).length : 0;
-  const fresh = pasted.filter((it) => !it.dup && !(me && it.h && String(it.h).toLowerCase() === me)).length;
+  const replied = await cmtReplied();
+  const have = new Set(q.map((r) => String(r.id)));
+  const fresh = pasted.filter((it) => !it.dup && !(me && it.h && String(it.h).toLowerCase() === me) && !replied.has(it.id) && !have.has(String(it.id))).length;
   add("links", open + fresh > 0, true, open + fresh > 0 ? `${fresh ? fresh + " new link" + (fresh === 1 ? "" : "s") + " pasted" : ""}${fresh && open ? " + " : ""}${open ? open + " already waiting in the queue" : ""}` : "No post links - paste at least one link", "links");
   if (mine) add("mine", false, false, `${mine} of the links ${mine === 1 ? "is" : "are"} your own post - ${mine === 1 ? "it is" : "they are"} skipped (GrowX never replies to your own posts)`);
   const spent = await cmtSpendToday(now), cap = s.cmtSpendCents / 100;
@@ -1300,6 +1307,11 @@ async function cmtGo(msg) {
   if (job && ACTIVE.has(job.status)) {
     const other = jobMode(job) !== "comment";
     if (other) await saveSettings({ runMode: "comment" }, { noStart: true });
+    else if ((job.status === "resting" || job.status === "sleeping") && ["empty", "cap"].includes(job.restReason)) {
+      // Waiting only because the queue was empty (or drafts were full): the new links are work, start on them now.
+      job.restUntil = Date.now(); job.cmtEmptyNoted = false;
+      await save({ [K.job]: job });
+    }
     scheduleTick(300);
     return { ok: true, switched: other, add: added, preflight: pf };
   }

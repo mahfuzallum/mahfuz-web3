@@ -393,7 +393,7 @@
     else if (k === "openX") { await U.cmd("openX"); return; }
     else if (k === "key" || k === "spend" || k === "goal") {
       location.hash = "#autopilot";
-      setTimeout(() => { const el = k === "key" ? $("#cmtKey") : $(`[data-ck="${k === "spend" ? "cmtSpendCents" : "cmtDaily"}"]`); if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); } }, 400);
+      setTimeout(() => { const el = k === "key" ? $("#cmtKey") : k === "spend" ? $("#cmtSpend") : $('#cmtSettings [data-ck="cmtDaily"]'); if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); } }, 400);
       return;
     }
     if (window.GXD && GXD.refresh) GXD.refresh();

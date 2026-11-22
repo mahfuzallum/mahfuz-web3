@@ -1046,7 +1046,17 @@
     if (x.rf || x.rq || x.gone) return false;
     if (s.unfProtectFollowers && x.fc != null && x.fc >= s.unfProtectFollowers) return true;
     if (x.qs != null && x.qs >= s.unfProtectScore) return true;
-    if (ufWhy(x) === "ia" && x.lt && x.lt >= x.t - s.unfInactiveDays * 86400000) return true;   // they had posted inside the period
+    if (ufWhy(x) === "ia") {
+      const w = String(x.w || "");
+      const pm = /(\d+) posts? in (\d+) days/.exec(w);                     // v3.1: "inactive - 3 posts in 60 days"
+      const days = pm ? Number(pm[2]) : s.unfInactiveDays;
+      // They had posted inside the period before the unfollow. lu = the latest post at the unfollow (saved by v3.2);
+      // lt = the latest post known now, which only says that when it is from before the unfollow.
+      const inside = (p) => !!p && p <= x.t && p >= x.t - days * 86400000;
+      if (inside(x.lu) || inside(x.lt)) return true;
+      if (pm && Number(pm[1]) > 0) return true;                               // v3.1 counted posts in the period: they did post
+      if (/"active followers" is on/.test(w)) return true;                    // v3.1 switch U6: an ACTIVE follower
+    }
     return false;
   }
   async function ulAll() {

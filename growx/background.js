@@ -2072,6 +2072,7 @@ function tgtKeepSync(list) {
 async function unfVerify(job, s, t) {
   const inactOk = !!t.ia && GX.unfInactiveOn(s);              // an inactive find: allowed even though they follow you
   const fRec = (await getFollowIndex()).get(t.i);
+  if (fRec && fRec.rf) return { skip: true, why: "you followed them again - never unfollowed again" };
   if (!inactOk && GX.followsYouBack(t, null, fRec)) return { skip: true, theyFollowYou: true, why: "follows you back - never unfollowed" };
 
   const chk = await sendTab(job.tabId, { gx: "rel", ids: [t.i] }, 45000);
@@ -2407,12 +2408,15 @@ async function inactiveWork(job, s, u, now) {
     if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
     if (!ri || !ri.ok) return { fail: ri || { kind: "transient", message: "no answer" } };
     const keep = keepSet(s);
+    const fidx = await getFollowIndex();
     const queued = new Set([].concat(u.ibatch || [], u.deep || [], u.batch || []).map((x) => x.i));
     let active = 0, big = 0, deepAdded = 0;
     for (const id of iids) {
       const m = (ri.map || {})[id];
       if (!m || m.fw === false) continue;                                      // gone, or not followed any more
       if (m.h && keep.has(String(m.h).toLowerCase())) continue;
+      const fr = fidx.get(id);
+      if (fr && fr.rf) continue;                                               // followed again from the Unfollowed page: never again
       if (queued.has(id)) continue;                                            // already waiting: never queued twice
       queued.add(id);
       if (GX.bigReason(m, s)) { big++; continue; }                             // big / good account: never
@@ -2931,19 +2935,24 @@ async function unfollowStep(job, s, now) {
     logLine(job, h, "ok", "unfollowed", tg);
     job.log[0].w = why;
     if (t.rk) { job.log[0].rk = t.rk; job.log[0].rkOf = u.ftotal || 0; }
-    const ul = await load(K.unlog, []);
-    const arr = Array.isArray(ul) ? ul : [];
-    if (tg === "fb") {
+    const sx = tg === "fb" ? await load(K.stats, {}) : null;
+    let fbBump = 0;
+    // One writer at a time (unlogTx): the Unfollowed page patches the same list (Follow again, Refresh numbers).
+    await unlogTx(async () => {
+      const ul = await load(K.unlog, []);
+      const arr = Array.isArray(ul) ? ul : [];
       // Lifetime number of followers GrowX unfollowed (inactive, or active with U6). First time it is seeded from the log, so older ones count too.
-      const sx = await load(K.stats, {});
-      await bumpStats({ unfollowedFollowers: (sx.unfollowedFollowers == null ? arr.filter((x) => x && x.k === "fb").length : 0) + 1 });
-    }
-    // v3.2: the numbers at the time of the unfollow, so the Unfollowed page can filter by score / activity / size and follow again.
-    arr.unshift({ i: t.i, h, n: r.n || t.n || "", a: r.a || t.a || "", t: now, k: tg, w: why, o: job.ownerId, rk: t.rk || 0, rkOf: u.ftotal || 0,
-      fc: vi.fc != null ? vi.fc : null, fr: vi.fr != null ? vi.fr : null, v: vi.v ? 1 : 0, lt: vi.lt || t.lt || null, sc: vi.sc != null ? vi.sc : null, ca: vi.ca || null,
-      qs: GX.qualityScore(Object.keys(vi).length ? vi : t), ia: t.ia ? 1 : 0 });
-    if (arr.length > 5000) arr.length = 5000;
-    await save({ [K.unlog]: arr });
+      fbBump = sx ? (sx.unfollowedFollowers == null ? arr.filter((x) => x && x.k === "fb").length : 0) + 1 : 0;
+      // v3.2: the numbers at the time of the unfollow, so the Unfollowed page can filter by score / activity / size and follow again.
+      // lt = the latest post as known now (Refresh numbers updates it); lu = the latest post AT the unfollow (never changed).
+      const lastAt = vi.lt || t.lt || null;
+      arr.unshift({ i: t.i, h, n: r.n || t.n || "", a: r.a || t.a || "", t: now, k: tg, w: why, o: job.ownerId, rk: t.rk || 0, rkOf: u.ftotal || 0,
+        fc: vi.fc != null ? vi.fc : null, fr: vi.fr != null ? vi.fr : null, v: vi.v ? 1 : 0, lt: lastAt, lu: lastAt, sc: vi.sc != null ? vi.sc : null, ca: vi.ca || null,
+        qs: GX.qualityScore(Object.keys(vi).length ? vi : t), ia: t.ia ? 1 : 0 });
+      if (arr.length > 5000) arr.length = 5000;
+      await save({ [K.unlog]: arr });
+    });
+    if (fbBump) await bumpStats({ unfollowedFollowers: fbBump });
     await actLog({ mode: "unfollow", act: "unfollow", h, i: t.i, why, extra: { was: tg === "fb" ? "followed you back" : "not following you" } });
     let delay = rand(s.unfMinDelay, s.unfMaxDelay);
     if (Math.random() * 100 < s.unfLongPause) delay *= rand(2, 4);
@@ -3703,7 +3712,7 @@ async function jobStep(job) {
   // 7b. v3.2 a fresh look at the front of the queue right before following: one lookup for up to 100 people.
   // Anyone who meanwhile went quiet, got stuck at X's following limit, followed you already or no longer
   // passes your rules comes off the queue, and the rest are scored again with today's numbers.
-  if (s.preCheck && t && t.i && !t.rf && !t.manual && !(t.pc > now - 6 * HOUR)) {
+  if (s.preCheck && t && t.i && !t.rf && !t.manual && !(t.pc > now - 6 * HOUR) && !(mem.pcFailUntil > now)) {
     const pc = await preCheckQueue(job, s, pool, now);
     if (pc.wrongAccount) { await haltFor(job, "account"); return park(job, s, Infinity, false); }
     if (pc.rate) return readRate(job, s, Date.now(), pc.rate, "Checking the next people before following");
@@ -3821,7 +3830,8 @@ async function preCheckQueue(job, s, pool, now) {
   const ri = await sendTab(job.tabId, { gx: "uinfo", ids: ordered.map((c) => c.i) }, 45000);
   if (ri && ri.uid && job.ownerId && ri.uid !== job.ownerId) return { wrongAccount: true };
   if (isRate(ri)) return { rate: ri };
-  if (!ri || !ri.ok) return {};
+  // A failed lookup: follow without the fresh look for a while instead of asking X again on every follow.
+  if (!ri || !ri.ok) { mem.pcFailUntil = Date.now() + 10 * MIN; return {}; }
   const L = s.learnScore ? await learnData() : null;
   const sources = L ? await getSources() : [];
   const reasons = {};
@@ -4597,15 +4607,25 @@ async function emergencyStop() {
 // v3.2 Unfollowed page: follow again, and fresh numbers for the filters
 // ===========================================================================
 // Small changes to the unfollow log by user id, in one read-modify-write (the engine adds to the same list).
+// One writer at a time for the unfollow log: the engine adds to it while the Unfollowed page patches it, and
+// two read-modify-writes running side by side would lose one of them. Every write goes through this chain.
+let unlogChain = Promise.resolve();
+function unlogTx(fn) {
+  const p = unlogChain.then(fn, fn);
+  unlogChain = p.then(() => {}, () => {});
+  return p;
+}
 async function unlogPatch(patches) {
   const ids = Object.keys(patches || {});
   if (!ids.length) return 0;
-  const arr = await load(K.unlog, []);
-  if (!Array.isArray(arr)) return 0;
-  let n = 0;
-  for (const x of arr) if (x && patches[x.i]) { Object.assign(x, patches[x.i]); n++; }
-  if (n) await save({ [K.unlog]: arr });
-  return n;
+  return unlogTx(async () => {
+    const arr = await load(K.unlog, []);
+    if (!Array.isArray(arr)) return 0;
+    let n = 0;
+    for (const x of arr) if (x && patches[x.i]) { Object.assign(x, patches[x.i]); n++; }
+    if (n) await save({ [K.unlog]: arr });
+    return n;
+  });
 }
 // "Follow again": the accounts go to the very front of the Follow queue (pinned) and Follow mode follows them with
 // all its own pacing, daily number, breaks and the X-refused plan. Nothing is followed outside those limits.
@@ -4643,18 +4663,18 @@ async function refollowQueue(ids) {
 let unlogRefreshing = false;
 async function unlogRefresh(msg) {
   if (unlogRefreshing) return { ok: false, error: "Already reading - wait a moment." };
-  const arr = await load(K.unlog, []);
-  if (!Array.isArray(arr) || !arr.length) return { ok: true, done: 0 };
-  const maxN = Math.min(3000, Number(msg && msg.max) || 1500);
-  const want = (msg && Array.isArray(msg.ids) && msg.ids.length) ? new Set(msg.ids.map(String)) : null;
-  const stale = Date.now() - 12 * HOUR;
-  const ids = arr.filter((x) => x && x.i && (want ? want.has(String(x.i)) : !(x.ra > stale))).slice(0, maxN).map((x) => String(x.i));
-  if (!ids.length) return { ok: true, done: 0, fresh: true };
-  const got = await acquireTab(null, { create: true });
-  if (!got) return { ok: false, error: "Couldn't open x.com." };
-  unlogRefreshing = true;
-  let done = 0, gone = 0;
+  unlogRefreshing = true;          // set before the first await, so two quick requests can't both run
+  let done = 0, gone = 0, ids = [];
   try {
+    const arr = await load(K.unlog, []);
+    if (!Array.isArray(arr) || !arr.length) return { ok: true, done: 0 };
+    const maxN = Math.min(3000, Number(msg && msg.max) || 1500);
+    const want = (msg && Array.isArray(msg.ids) && msg.ids.length) ? new Set(msg.ids.map(String)) : null;
+    const stale = Date.now() - 12 * HOUR;
+    ids = arr.filter((x) => x && x.i && (want ? want.has(String(x.i)) : !(x.ra > stale))).slice(0, maxN).map((x) => String(x.i));
+    if (!ids.length) return { ok: true, done: 0, fresh: true };
+    const got = await acquireTab(null, { create: true });
+    if (!got) return { ok: false, error: "Couldn't open x.com." };
     for (let i = 0; i < ids.length; i += 100) {
       const part = ids.slice(i, i + 100);
       const r = await sendTab(got.tabId, { gx: "uinfo", ids: part }, 45000);

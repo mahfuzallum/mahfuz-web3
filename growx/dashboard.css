@@ -1260,3 +1260,9 @@ label.opt { cursor: pointer; }
   .us-row { grid-template-columns: 10px auto minmax(0, 1fr) auto; }
   .us-row time { display: none; }
 }
+
+/* v3.2 Source leaderboard on a phone: Source, Rate and Verdict only (the five fixed columns made the page scroll sideways) */
+@media (max-width: 640px) {
+  .l-cols { grid-template-columns: minmax(0, 1fr) 84px auto; }
+  .l-cols > :nth-child(2), .l-cols > :nth-child(3) { display: none; }
+}

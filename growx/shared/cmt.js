@@ -598,6 +598,7 @@
     let t = cmtNextOpen(s, now), since = 0, breaks = 0, days = 0, work = 0, guard = 0;
     const waitsForWindow = t > now;
     let day = new Date(t).toDateString();
+    if (day !== new Date(now).toDateString()) dayLeft = s.cmtDaily;      // the window opens on a later day: a fresh goal there
     while (left > 0 && guard++ < 5000) {
       if (dayLeft <= 0) {
         const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(0, 0, 0, 0);
