@@ -380,10 +380,10 @@ window.renderFrame=function(t){
   ctx.setTransform(SCALE,0,0,SCALE,0,0);ctx.globalAlpha=1;
   background(t);
   for(const s of TL.scenes){
-    if(t<s.start-0.001||t>s.end+XF)continue;
+    if(t<s.start-0.001||t>s.end+0.4)continue;
     const lt=t-s.start,dur=s.end-s.start;
-    const fin=s.id==='hook'?clamp(t/0.8):clamp(lt/XF);
-    const fout=s.id==='endcard'?1-clamp((t-(TL.total-1.2))/1.2):1-clamp((t-s.end)/XF);
+    const fin=s.id==='hook'?clamp(t/0.8):eio(clamp((lt-0.28)/0.42));
+    const fout=s.id==='endcard'?1-clamp((t-(TL.total-1.2))/1.2):1-eio(clamp((t-s.end)/0.36));
     const alpha=fin*fout;if(alpha<=0)continue;
     ctx.save();ctx.globalAlpha=alpha;
     // slow camera push

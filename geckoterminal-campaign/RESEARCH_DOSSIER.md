@@ -1,6 +1,6 @@
 # GeckoTerminal Watchlist Campaign: Research Dossier & Production Notes
 
-**Film:** "Signal, Not Noise". 16:9, 3840×2160, 30 fps, 96 s, English male narration, original electronic score.
+**Film:** "Signal, Not Noise". 16:9, 3840×2160, 30 fps, 96 s, English male narration, original electronic score. 1080p cut: `video/GeckoTerminal_Watchlist_Campaign_1080p.mp4` (the 4K master is delivered separately; it exceeds GitHub's 100 MB file limit).
 **Data capture window:** 22 Nov 2026, 02:09–02:11 UTC (GeckoTerminal public API `api.geckoterminal.com/api/v2`).
 **Status of figures:** every on-screen market figure comes from that snapshot. Figures change in real time, so re-capture before publishing if the video goes out later. Re-capture means re-running `production/` (see the end of this file).
 
