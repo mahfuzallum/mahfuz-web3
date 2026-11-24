@@ -7,5 +7,6 @@
   "max_mb": 100,
   "crf": 20,
   "hashtags": ["#scoopz", "#reels", "#viral"],
-  "default_caption": ""
+  "default_caption": "",
+  "fallbacks": true
 }

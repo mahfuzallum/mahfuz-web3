@@ -8,7 +8,9 @@ Usage:
     python3 scoopz/prep.py -o out_dir a.mp4 b.mov
 
 Output (default scoopz/ready/):
-    <name>.mp4         upload-ready video
+    <name>.mp4         upload-ready video (level A: 1080p, best quality)
+    <name>_B_720p.mp4  fallback if A fails (720p, smaller)
+    <name>_C_small.mp4 last resort (720p, baseline profile, max 60s, very small)
     <name>.txt         caption + hashtags (copy-paste into Scoopz)
     report.md          what was wrong with each input and what was fixed
 """
@@ -31,7 +33,18 @@ DEFAULT_CONFIG = {
     "crf": 20,
     "hashtags": ["#scoopz", "#reels", "#viral"],
     "default_caption": "",
+    "fallbacks": True,
 }
+
+# Upload-safety levels. If Scoopz rejects A, try B, then C.
+LEVELS = [
+    {"name": "A", "suffix": "", "w": 1080, "h": 1920, "maxrate": "8M",
+     "profile": "high", "level": "4.1", "crf_add": 0, "max_s": None},
+    {"name": "B", "suffix": "_B_720p", "w": 720, "h": 1280, "maxrate": "4M",
+     "profile": "main", "level": "3.1", "crf_add": 3, "max_s": None},
+    {"name": "C", "suffix": "_C_small", "w": 720, "h": 1280, "maxrate": "2M",
+     "profile": "baseline", "level": "3.1", "crf_add": 6, "max_s": 60},
+]
 
 
 def load_config(path):
@@ -121,8 +134,8 @@ def analyze(path, info, cfg):
     return facts, problems
 
 
-def build_filter(facts, cfg):
-    W, H, fps = cfg["width"], cfg["height"], cfg["fps"]
+def build_filter(facts, cfg, W, H):
+    fps = cfg["fps"]
     pre = []
     if facts.get("hdr"):
         pre.append("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,"
@@ -141,21 +154,24 @@ def build_filter(facts, cfg):
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[v]")
 
 
-def encode(src, dst, facts, cfg, crf):
+def encode(src, dst, facts, cfg, lv, crf):
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(src)]
     has_audio = facts.get("audio") is not None
     if not has_audio:
         cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
-    cmd += ["-filter_complex", build_filter(facts, cfg), "-map", "[v]",
+    W, H = (cfg["width"], cfg["height"]) if lv["name"] == "A" else (lv["w"], lv["h"])
+    cmd += ["-filter_complex", build_filter(facts, cfg, W, H), "-map", "[v]",
             "-map", "0:a:0" if has_audio else "1:a:0"]
-    if cfg["trim_to_max"] and facts["duration_s"] > cfg["max_seconds"]:
-        cmd += ["-t", str(cfg["max_seconds"])]
+    limit = lv["max_s"] or (cfg["max_seconds"] if cfg["trim_to_max"] else None)
+    if limit and facts["duration_s"] > limit:
+        cmd += ["-t", str(limit)]
     elif not has_audio:
         cmd += ["-shortest"]
     cmd += [
-        "-c:v", "libx264", "-profile:v", "high", "-level", "4.1",
+        "-c:v", "libx264", "-profile:v", lv["profile"], "-level", lv["level"],
         "-preset", "medium", "-crf", str(crf),
-        "-maxrate", "8M", "-bufsize", "16M", "-g", str(cfg["fps"] * 2),
+        "-maxrate", lv["maxrate"], "-bufsize", lv["maxrate"].replace("M", "") + "M",
+        "-g", str(cfg["fps"] * 2),
         "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
         "-map_metadata", "-1", "-movflags", "+faststart", str(dst),
@@ -179,17 +195,20 @@ def process(src, out_dir, cfg):
     facts, problems = analyze(src, info, cfg)
     if not facts:
         return {"file": src.name, "ok": False, "error": problems[0]}
-    dst = out_dir / (src.stem + ".mp4")
-    crf = cfg["crf"]
-    for _ in range(3):
-        encode(src, dst, facts, cfg, crf)
-        if dst.stat().st_size / 1_048_576 <= cfg["max_mb"]:
-            break
-        crf += 4
+    outputs = []
+    for lv in LEVELS if cfg["fallbacks"] else LEVELS[:1]:
+        dst = out_dir / (src.stem + lv["suffix"] + ".mp4")
+        crf = cfg["crf"] + lv["crf_add"]
+        for _ in range(3):
+            encode(src, dst, facts, cfg, lv, crf)
+            if dst.stat().st_size / 1_048_576 <= cfg["max_mb"]:
+                break
+            crf += 4
+        f, rem = analyze(dst, probe(dst), cfg)
+        outputs.append({"level": lv["name"], "file": dst.name, "facts": f, "remaining": rem})
     (out_dir / (src.stem + ".txt")).write_text(caption_for(src, cfg), encoding="utf-8")
-    out_facts, out_problems = analyze(dst, probe(dst), cfg)
     return {"file": src.name, "ok": True, "before": facts, "problems": problems,
-            "after": out_facts, "remaining": out_problems, "output": dst.name}
+            "outputs": outputs, "stem": src.stem}
 
 
 def write_report(results, out_dir):
@@ -199,20 +218,21 @@ def write_report(results, out_dir):
         if not r["ok"]:
             lines += [f"- FAILED: {r['error']}", ""]
             continue
-        b, a = r["before"], r["after"]
-        lines.append(f"- Before: {b['codec']} {b['width']}x{b['height']} {b['fps']}fps, "
+        b = r["before"]
+        lines.append(f"- Original: {b['codec']} {b['width']}x{b['height']} {b['fps']}fps, "
                      f"{b['duration_s']}s, {b['size_mb']} MB, audio={b['audio']}, HDR={b['hdr']}")
-        lines.append(f"- After:  {a['codec']} {a['width']}x{a['height']} {a['fps']}fps, "
-                     f"{a['duration_s']}s, {a['size_mb']} MB, audio={a['audio']}")
         if r["problems"]:
             lines.append("- Fixed:")
             lines += [f"  - {p}" for p in r["problems"]]
         else:
             lines.append("- No technical problems found in the original.")
-        if r["remaining"]:
-            lines.append("- Still needs attention:")
-            lines += [f"  - {p}" for p in r["remaining"]]
-        lines.append(f"- Ready: `{r['output']}` + caption `{Path(r['output']).stem}.txt`")
+        lines.append("- Upload in this order (if one fails, try the next):")
+        for o in r["outputs"]:
+            a = o["facts"]
+            lines.append(f"  - Level {o['level']}: `{o['file']}` — {a['width']}x{a['height']} "
+                         f"{a['fps']}fps, {a['duration_s']}s, {a['size_mb']} MB")
+            lines += [f"    - note: {p}" for p in o["remaining"]]
+        lines.append(f"- Caption: `{r['stem']}.txt`")
         lines.append("")
     lines += [
         "## Check by hand before posting (a script can't detect these)",
