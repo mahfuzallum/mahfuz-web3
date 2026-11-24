@@ -1,0 +1,27 @@
+name: Scoopz reel prep
+
+on:
+  push:
+    paths:
+      - "scoopz/inbox/**"
+  workflow_dispatch:
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Check and convert videos
+        run: python3 scoopz/prep.py
+      - name: Show report
+        if: always()
+        run: cat scoopz/ready/report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload ready videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoopz-ready
+          path: scoopz/ready/
+          retention-days: 14

@@ -1,0 +1,11 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "max_seconds": 180,
+  "trim_to_max": false,
+  "max_mb": 100,
+  "crf": 20,
+  "hashtags": ["#scoopz", "#reels", "#viral"],
+  "default_caption": ""
+}
